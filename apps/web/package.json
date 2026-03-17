@@ -1,0 +1,25 @@
+{
+  "name": "@exetron/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"No tests for @exetron/web yet\""
+  },
+  "dependencies": {
+    "@exetron/contracts": "workspace:*",
+    "@exetron/types": "workspace:*",
+    "next": "^15.2.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.5",
+    "eslint-config-next": "^15.2.2"
+  }
+}

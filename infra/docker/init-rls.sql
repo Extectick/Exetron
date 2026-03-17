@@ -1,0 +1,2 @@
+-- Placeholder bootstrap script.
+-- RLS policies are managed by Prisma migrations in packages/database/prisma/migrations.

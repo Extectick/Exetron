@@ -1,0 +1,46 @@
+{
+  "name": "exetron",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/run-turbo.mjs build",
+    "dev": "node scripts/run-turbo.mjs dev --parallel",
+    "lint": "node scripts/run-turbo.mjs lint",
+    "typecheck": "node scripts/run-turbo.mjs typecheck",
+    "test": "node scripts/run-turbo.mjs test",
+    "test:e2e": "node scripts/run-turbo.mjs test:e2e",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down -v",
+    "db:generate": "node scripts/run-pnpm.mjs --filter @exetron/database db:generate",
+    "db:migrate": "node scripts/run-pnpm.mjs --filter @exetron/database db:migrate",
+    "db:deploy": "node scripts/run-pnpm.mjs --filter @exetron/database db:deploy",
+    "db:seed": "node scripts/run-pnpm.mjs --filter @exetron/database db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.23.0",
+    "@types/node": "^22.13.14",
+    "eslint": "^9.23.0",
+    "globals": "^16.0.0",
+    "prettier": "^3.5.3",
+    "turbo": "^2.4.4",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.28.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}

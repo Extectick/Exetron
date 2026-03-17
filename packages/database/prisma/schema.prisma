@@ -1,0 +1,545 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum BrandStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum StoreStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum DeviceType {
+  POS
+  KIOSK
+  KITCHEN
+  BOARD
+  BACKOFFICE
+}
+
+enum DeviceStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  RETIRED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  DEVICE
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum FeatureFlagKind {
+  BOOLEAN
+  PERCENTAGE
+}
+
+enum CategoryStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ModifierGroupStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ModifierOptionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ModifierSelectionMode {
+  SINGLE
+  MULTIPLE
+}
+
+enum PriceListStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CatalogTargetType {
+  PRODUCT
+  VARIANT
+  MODIFIER_OPTION
+}
+
+enum AvailabilityTargetType {
+  PRODUCT
+  VARIANT
+}
+
+model Tenant {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  slug                 String                 @unique
+  name                 String
+  status               TenantStatus           @default(ACTIVE)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  brands               Brand[]
+  stores               Store[]
+  users                User[]
+  roles                Role[]
+  devices              Device[]
+  auditLogs            AuditLog[]
+  featureFlags         FeatureFlag[]
+  tenantSettings       TenantSetting[]
+  storeSettings        StoreSetting[]
+  outboxEvents         OutboxEvent[]
+  categories           Category[]
+  products             Product[]
+  productVariants      ProductVariant[]
+  modifierGroups       ModifierGroup[]
+  modifierOptions      ModifierOption[]
+  productModifierLinks ProductModifierGroup[]
+  priceLists           PriceList[]
+  priceListItems       PriceListItem[]
+  storeCatalogOverrides StoreCatalogOverride[]
+  availabilityWindows  AvailabilityWindow[]
+}
+
+model Brand {
+  id        String      @id @default(uuid()) @db.Uuid
+  tenantId  String      @db.Uuid
+  code      String
+  name      String
+  status    BrandStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stores    Store[]
+  products  Product[]
+
+  @@unique([tenantId, code])
+}
+
+model Store {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  tenantId            String                 @db.Uuid
+  brandId             String?                @db.Uuid
+  code                String
+  name                String
+  timezone            String                 @default("UTC")
+  status              StoreStatus            @default(ACTIVE)
+  address             Json?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  tenant              Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand               Brand?                 @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  devices             Device[]
+  storeSettings       StoreSetting[]
+  featureFlags        FeatureFlag[]
+  storeAccess         UserStoreAccess[]
+  auditLogs           AuditLog[]
+  catalogOverrides    StoreCatalogOverride[]
+  availabilityWindows AvailabilityWindow[]
+
+  @@unique([tenantId, code])
+}
+
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String?          @db.Uuid
+  email           String           @unique
+  firstName       String
+  lastName        String
+  passwordHash    String
+  status          UserStatus       @default(ACTIVE)
+  isPlatformAdmin Boolean          @default(false)
+  lastLoginAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant?          @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  refreshSessions RefreshSession[]
+  userRoles       UserRole[]
+  storeAccess     UserStoreAccess[]
+
+  @@index([tenantId])
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  roleLinks   RolePermission[]
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @db.Uuid
+  key         String
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@unique([tenantId, key])
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId     String   @db.Uuid
+  roleId     String   @db.Uuid
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model UserStoreAccess {
+  userId     String   @db.Uuid
+  storeId    String   @db.Uuid
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, storeId])
+}
+
+model Device {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @db.Uuid
+  storeId    String       @db.Uuid
+  code       String
+  name       String
+  type       DeviceType
+  status     DeviceStatus @default(PENDING)
+  apiKeyHash String?
+  lastSeenAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store      Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+}
+
+model RefreshSession {
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @db.Uuid
+  tokenHash  String        @unique
+  status     SessionStatus @default(ACTIVE)
+  expiresAt  DateTime
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  metadata   Json?
+  createdAt  DateTime      @default(now())
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String         @id @default(uuid()) @db.Uuid
+  tenantId   String?        @db.Uuid
+  storeId    String?        @db.Uuid
+  actorType  AuditActorType
+  actorId    String
+  action     String
+  entityType String
+  entityId   String
+  payload    Json?
+  createdAt  DateTime       @default(now())
+  tenant     Tenant?        @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  store      Store?         @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([storeId, createdAt])
+}
+
+model TenantSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+}
+
+model StoreSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  storeId   String   @db.Uuid
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, key])
+}
+
+model FeatureFlag {
+  id                String          @id @default(uuid()) @db.Uuid
+  tenantId          String          @db.Uuid
+  storeId           String?         @db.Uuid
+  scopeKey          String
+  key               String
+  enabled           Boolean         @default(false)
+  kind              FeatureFlagKind @default(BOOLEAN)
+  rolloutPercentage Int?
+  rules             Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store             Store?          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([scopeKey, key])
+  @@index([tenantId, storeId])
+}
+
+model OutboxEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String?  @db.Uuid
+  eventName   String
+  aggregate   String
+  aggregateId String
+  payload     Json
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([publishedAt])
+}
+
+model Category {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  parentId    String?        @db.Uuid
+  code        String
+  name        String
+  description String?
+  sortOrder   Int            @default(0)
+  status      CategoryStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent      Category?      @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Category[]     @relation("CategoryHierarchy")
+  products    Product[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+}
+
+model Product {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @db.Uuid
+  categoryId        String?               @db.Uuid
+  brandId           String?               @db.Uuid
+  code              String
+  name              String
+  description       String?
+  status            ProductStatus         @default(ACTIVE)
+  isVisible         Boolean               @default(true)
+  isAvailable       Boolean               @default(true)
+  isOutOfStock      Boolean               @default(false)
+  basePrice         Decimal?              @db.Decimal(12, 2)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category          Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  brand             Brand?                @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  variants           ProductVariant[]
+  modifierGroupLinks ProductModifierGroup[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, categoryId])
+}
+
+model ProductVariant {
+  id                 String               @id @default(uuid()) @db.Uuid
+  tenantId           String               @db.Uuid
+  productId          String               @db.Uuid
+  code               String
+  name               String
+  sku                String?
+  barcode            String?
+  status             ProductStatus        @default(ACTIVE)
+  isVisible          Boolean              @default(true)
+  isAvailable        Boolean              @default(true)
+  isOutOfStock       Boolean              @default(false)
+  basePrice          Decimal?             @db.Decimal(12, 2)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product            Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, code])
+  @@index([tenantId, productId])
+}
+
+model ModifierGroup {
+  id            String                @id @default(uuid()) @db.Uuid
+  tenantId      String                @db.Uuid
+  code          String
+  name          String
+  description   String?
+  selectionMode ModifierSelectionMode @default(SINGLE)
+  minSelection  Int                   @default(0)
+  maxSelection  Int?
+  required      Boolean               @default(false)
+  status        ModifierGroupStatus   @default(ACTIVE)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  tenant        Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  options       ModifierOption[]
+  productLinks  ProductModifierGroup[]
+
+  @@unique([tenantId, code])
+}
+
+model ModifierOption {
+  id         String               @id @default(uuid()) @db.Uuid
+  tenantId   String               @db.Uuid
+  groupId    String               @db.Uuid
+  code       String
+  name       String
+  status     ModifierOptionStatus @default(ACTIVE)
+  priceDelta Decimal              @default(0) @db.Decimal(12, 2)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  tenant     Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  group      ModifierGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, code])
+  @@index([tenantId, groupId])
+}
+
+model ProductModifierGroup {
+  tenantId        String        @db.Uuid
+  productId       String        @db.Uuid
+  modifierGroupId String        @db.Uuid
+  sortOrder       Int           @default(0)
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([productId, modifierGroupId])
+  @@index([tenantId, modifierGroupId])
+}
+
+model PriceList {
+  id        String          @id @default(uuid()) @db.Uuid
+  tenantId  String          @db.Uuid
+  code      String
+  name      String
+  currency  String
+  status    PriceListStatus @default(ACTIVE)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items     PriceListItem[]
+
+  @@unique([tenantId, code])
+}
+
+model PriceListItem {
+  id         String            @id @default(uuid()) @db.Uuid
+  tenantId   String            @db.Uuid
+  priceListId String           @db.Uuid
+  targetType CatalogTargetType
+  targetId   String            @db.Uuid
+  price      Decimal           @db.Decimal(12, 2)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  priceList  PriceList         @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, targetType, targetId])
+  @@index([tenantId, targetType, targetId])
+}
+
+model StoreCatalogOverride {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @db.Uuid
+  storeId      String            @db.Uuid
+  targetType   CatalogTargetType
+  targetId     String            @db.Uuid
+  isVisible    Boolean?
+  isAvailable  Boolean?
+  isOutOfStock Boolean?
+  priceOverride Decimal?         @db.Decimal(12, 2)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store        Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, targetType, targetId])
+  @@index([tenantId, storeId])
+}
+
+model AvailabilityWindow {
+  id         String                 @id @default(uuid()) @db.Uuid
+  tenantId   String                 @db.Uuid
+  storeId    String?                @db.Uuid
+  targetType AvailabilityTargetType
+  targetId   String                 @db.Uuid
+  weekday    Int
+  startTime  String
+  endTime    String
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store      Store?                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, targetType, targetId])
+  @@index([storeId, weekday])
+}

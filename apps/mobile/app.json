@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Exetron Mobile",
+    "slug": "exetron-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#f8f7f3"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "android": {
+      "package": "com.exetron.mobile"
+    }
+  }
+}
