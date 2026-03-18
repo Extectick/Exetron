@@ -64,6 +64,21 @@ enum FeatureFlagKind {
   PERCENTAGE
 }
 
+enum CustomizationChannel {
+  ADMIN
+  POS
+  KIOSK
+  DELIVERY
+  KITCHEN
+  BOARD
+  BACKOFFICE
+}
+
+enum CustomizationRuleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 enum CategoryStatus {
   ACTIVE
   ARCHIVED
@@ -106,6 +121,92 @@ enum AvailabilityTargetType {
   VARIANT
 }
 
+enum OrderChannel {
+  ADMIN
+  POS
+  KIOSK
+  DELIVERY
+}
+
+enum CartStatus {
+  OPEN
+  CONVERTED
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  IN_PREPARATION
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum RefundStatus {
+  NONE
+  NOT_REQUIRED
+  PENDING_MANUAL
+}
+
+enum PosShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosSessionStatus {
+  ACTIVE
+  ENDED
+}
+
+enum PaymentMethodKind {
+  CASH
+  CARD
+  QR
+}
+
+enum PaymentIntentStatus {
+  PENDING
+  PARTIALLY_PAID
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentAllocationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentAttemptStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentProviderType {
+  CASH_MANUAL
+  CARD_SIMULATED
+  QR_SIMULATED
+}
+
+enum KitchenTicketStatus {
+  NEW
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum KioskPaymentHandoffStatus {
+  INITIATED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 model Tenant {
   id                   String                 @id @default(uuid()) @db.Uuid
   slug                 String                 @unique
@@ -120,6 +221,8 @@ model Tenant {
   devices              Device[]
   auditLogs            AuditLog[]
   featureFlags         FeatureFlag[]
+  brandingConfigs      CustomizationBrandingConfig[]
+  customizationRules   CustomizationRule[]
   tenantSettings       TenantSetting[]
   storeSettings        StoreSetting[]
   outboxEvents         OutboxEvent[]
@@ -133,6 +236,18 @@ model Tenant {
   priceListItems       PriceListItem[]
   storeCatalogOverrides StoreCatalogOverride[]
   availabilityWindows  AvailabilityWindow[]
+  carts                Cart[]
+  orders               Order[]
+  orderEvents          OrderEvent[]
+  posShifts            PosShift[]
+  posSessions          PosSession[]
+  paymentIntents       PaymentIntent[]
+  paymentAllocations   PaymentAllocation[]
+  paymentAttempts      PaymentAttempt[]
+  paymentProviderConfigs PaymentProviderConfig[]
+  analyticsSnapshots   AnalyticsSnapshot[]
+  kitchenTickets       KitchenTicket[]
+  kioskPaymentHandoffs KioskPaymentHandoff[]
 }
 
 model Brand {
@@ -166,10 +281,23 @@ model Store {
   devices             Device[]
   storeSettings       StoreSetting[]
   featureFlags        FeatureFlag[]
+  brandingConfigs     CustomizationBrandingConfig[]
+  customizationRules  CustomizationRule[]
   storeAccess         UserStoreAccess[]
   auditLogs           AuditLog[]
   catalogOverrides    StoreCatalogOverride[]
   availabilityWindows AvailabilityWindow[]
+  carts               Cart[]
+  orders              Order[]
+  orderEvents         OrderEvent[]
+  posShifts           PosShift[]
+  posSessions         PosSession[]
+  paymentIntents      PaymentIntent[]
+  paymentAttempts     PaymentAttempt[]
+  paymentProviderConfigs PaymentProviderConfig[]
+  analyticsSnapshots  AnalyticsSnapshot[]
+  kitchenTickets      KitchenTicket[]
+  kioskPaymentHandoffs KioskPaymentHandoff[]
 
   @@unique([tenantId, code])
 }
@@ -190,6 +318,12 @@ model User {
   refreshSessions RefreshSession[]
   userRoles       UserRole[]
   storeAccess     UserStoreAccess[]
+  createdCarts    Cart[]           @relation("CartCreatedByUser")
+  createdOrders   Order[]          @relation("OrderCreatedByUser")
+  openedPosShifts PosShift[]       @relation("PosShiftOpenedByUser")
+  posSessions     PosSession[]
+  paymentIntents  PaymentIntent[]  @relation("PaymentIntentCreatedByUser")
+  analyticsSnapshots AnalyticsSnapshot[] @relation("AnalyticsSnapshotCreatedByUser")
 
   @@index([tenantId])
 }
@@ -262,6 +396,12 @@ model Device {
   updatedAt  DateTime     @updatedAt
   tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   store      Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  carts      Cart[]
+  orders     Order[]
+  paymentIntents PaymentIntent[]
+  posShifts  PosShift[]
+  posSessions PosSession[]
+  kioskPaymentHandoffs KioskPaymentHandoff[]
 
   @@unique([tenantId, code])
 }
@@ -342,6 +482,45 @@ model FeatureFlag {
 
   @@unique([scopeKey, key])
   @@index([tenantId, storeId])
+}
+
+model CustomizationBrandingConfig {
+  id        String               @id @default(uuid()) @db.Uuid
+  tenantId  String               @db.Uuid
+  storeId   String?              @db.Uuid
+  channel   CustomizationChannel
+  pointKey  String?
+  scopeKey  String               @unique
+  config    Json
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  tenant    Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store     Store?               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, channel, createdAt])
+  @@index([storeId, channel, createdAt])
+}
+
+model CustomizationRule {
+  id          String                  @id @default(uuid()) @db.Uuid
+  tenantId    String                  @db.Uuid
+  storeId     String?                 @db.Uuid
+  channel     CustomizationChannel?
+  pointKey    String?
+  key         String
+  description String?
+  status      CustomizationRuleStatus @default(ACTIVE)
+  priority    Int                     @default(100)
+  conditions  Json?
+  actions     Json
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  tenant      Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store       Store?                  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, channel, status, priority])
+  @@index([storeId, channel, status, priority])
 }
 
 model OutboxEvent {
@@ -542,4 +721,384 @@ model AvailabilityWindow {
 
   @@index([tenantId, targetType, targetId])
   @@index([storeId, weekday])
+}
+
+model Cart {
+  id              String     @id @default(uuid()) @db.Uuid
+  tenantId        String     @db.Uuid
+  storeId         String     @db.Uuid
+  channel         OrderChannel @default(ADMIN)
+  status          CartStatus @default(OPEN)
+  customerName    String?
+  customerPhone   String?
+  note            String?
+  subtotal        Decimal    @default(0) @db.Decimal(12, 2)
+  modifierTotal   Decimal    @default(0) @db.Decimal(12, 2)
+  total           Decimal    @default(0) @db.Decimal(12, 2)
+  deviceId        String?    @db.Uuid
+  createdByUserId String?    @db.Uuid
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store           Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  device          Device?    @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  createdByUser   User?      @relation("CartCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items           CartItem[]
+  order           Order?
+
+  @@index([tenantId, storeId, status])
+  @@index([storeId, createdAt])
+}
+
+model CartItem {
+  id            String      @id @default(uuid()) @db.Uuid
+  cartId        String      @db.Uuid
+  productId     String      @db.Uuid
+  variantId     String?     @db.Uuid
+  quantity      Int
+  priceListId   String?     @db.Uuid
+  unitBasePrice Decimal?    @db.Decimal(12, 2)
+  modifierTotal Decimal     @default(0) @db.Decimal(12, 2)
+  lineTotal     Decimal     @default(0) @db.Decimal(12, 2)
+  snapshot      Json
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  cart          Cart        @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  modifiers     CartItemModifier[]
+
+  @@index([cartId, createdAt])
+}
+
+model CartItemModifier {
+  id               String   @id @default(uuid()) @db.Uuid
+  cartItemId       String   @db.Uuid
+  modifierGroupId  String   @db.Uuid
+  modifierOptionId String   @db.Uuid
+  nameSnapshot     String
+  priceDelta       Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt        DateTime @default(now())
+  cartItem         CartItem @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+
+  @@index([cartItemId, createdAt])
+}
+
+model Order {
+  id              String       @id @default(uuid()) @db.Uuid
+  tenantId        String       @db.Uuid
+  storeId         String       @db.Uuid
+  cartId          String?      @unique @db.Uuid
+  number          String       @unique
+  channel         OrderChannel
+  status          OrderStatus  @default(PLACED)
+  refundStatus    RefundStatus @default(NONE)
+  customerName    String?
+  customerPhone   String?
+  note            String?
+  subtotal        Decimal      @default(0) @db.Decimal(12, 2)
+  modifierTotal   Decimal      @default(0) @db.Decimal(12, 2)
+  total           Decimal      @default(0) @db.Decimal(12, 2)
+  placedAt        DateTime     @default(now())
+  confirmedAt     DateTime?
+  readyAt         DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  deviceId        String?      @db.Uuid
+  createdByUserId String?      @db.Uuid
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store           Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  cart            Cart?        @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  device          Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  createdByUser   User?        @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  events          OrderEvent[]
+  paymentIntents  PaymentIntent[]
+  paymentAttempts PaymentAttempt[]
+  kitchenTickets  KitchenTicket[]
+  kioskPaymentHandoffs KioskPaymentHandoff[]
+
+  @@index([tenantId, storeId, status, placedAt])
+  @@index([storeId, placedAt])
+}
+
+model OrderItem {
+  id            String      @id @default(uuid()) @db.Uuid
+  orderId        String      @db.Uuid
+  productId      String      @db.Uuid
+  variantId      String?     @db.Uuid
+  quantity       Int
+  unitBasePrice  Decimal?    @db.Decimal(12, 2)
+  modifierTotal  Decimal     @default(0) @db.Decimal(12, 2)
+  lineTotal      Decimal     @default(0) @db.Decimal(12, 2)
+  snapshot       Json
+  createdAt      DateTime    @default(now())
+  order          Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  modifiers      OrderItemModifier[]
+
+  @@index([orderId, createdAt])
+}
+
+model OrderItemModifier {
+  id               String    @id @default(uuid()) @db.Uuid
+  orderItemId      String    @db.Uuid
+  modifierGroupId  String    @db.Uuid
+  modifierOptionId String    @db.Uuid
+  nameSnapshot     String
+  priceDelta       Decimal   @default(0) @db.Decimal(12, 2)
+  createdAt        DateTime  @default(now())
+  orderItem        OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId, createdAt])
+}
+
+model OrderEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  orderId    String   @db.Uuid
+  tenantId   String   @db.Uuid
+  storeId    String   @db.Uuid
+  type       String
+  payload    Json
+  createdAt  DateTime @default(now())
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store      Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@index([tenantId, storeId, createdAt])
+}
+
+model PosShift {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String         @db.Uuid
+  storeId           String         @db.Uuid
+  deviceId          String         @db.Uuid
+  openedByUserId    String         @db.Uuid
+  status            PosShiftStatus @default(OPEN)
+  openingCashAmount Decimal?       @db.Decimal(12, 2)
+  closingCashAmount Decimal?       @db.Decimal(12, 2)
+  openedAt          DateTime       @default(now())
+  closedAt          DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store             Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  device            Device         @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  openedByUser      User           @relation("PosShiftOpenedByUser", fields: [openedByUserId], references: [id], onDelete: Cascade)
+  sessions          PosSession[]
+  paymentIntents    PaymentIntent[]
+
+  @@index([tenantId, storeId, status, openedAt])
+  @@index([deviceId, status, openedAt])
+}
+
+model PosSession {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @db.Uuid
+  storeId         String           @db.Uuid
+  deviceId        String           @db.Uuid
+  shiftId         String           @db.Uuid
+  userId          String           @db.Uuid
+  status          PosSessionStatus @default(ACTIVE)
+  startedAt       DateTime         @default(now())
+  endedAt         DateTime?
+  lastHeartbeatAt DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  device          Device           @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  shift           PosShift         @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentIntents  PaymentIntent[]
+
+  @@index([tenantId, storeId, status, startedAt])
+  @@index([deviceId, status, startedAt])
+}
+
+model PaymentIntent {
+  id              String              @id @default(uuid()) @db.Uuid
+  tenantId        String              @db.Uuid
+  storeId         String              @db.Uuid
+  orderId         String              @db.Uuid
+  channel         OrderChannel
+  deviceId        String?             @db.Uuid
+  posSessionId    String?             @db.Uuid
+  shiftId         String?             @db.Uuid
+  status          PaymentIntentStatus @default(PENDING)
+  totalAmount     Decimal             @db.Decimal(12, 2)
+  paidAmount      Decimal             @default(0) @db.Decimal(12, 2)
+  createdByUserId String?             @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order           Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  device          Device?             @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  posSession      PosSession?         @relation(fields: [posSessionId], references: [id], onDelete: SetNull)
+  shift           PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  createdByUser   User?               @relation("PaymentIntentCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  allocations     PaymentAllocation[]
+  attempts        PaymentAttempt[]
+
+  @@index([tenantId, storeId, status, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model PaymentAllocation {
+  id              String            @id @default(uuid()) @db.Uuid
+  tenantId        String            @db.Uuid
+  paymentIntentId String            @db.Uuid
+  method          PaymentMethodKind
+  amount          Decimal           @db.Decimal(12, 2)
+  status          PaymentAllocationStatus @default(PENDING)
+  providerKey     String?
+  externalReference String?
+  completedAt     DateTime?
+  failedAt        DateTime?
+  failureReason   String?
+  createdAt       DateTime          @default(now())
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  paymentIntent   PaymentIntent     @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  attempts        PaymentAttempt[]
+
+  @@index([tenantId, paymentIntentId, createdAt])
+}
+
+model PaymentAttempt {
+  id                String               @id @default(uuid()) @db.Uuid
+  paymentIntentId   String               @db.Uuid
+  paymentAllocationId String             @db.Uuid
+  tenantId          String               @db.Uuid
+  storeId           String               @db.Uuid
+  orderId           String               @db.Uuid
+  providerKey       String
+  providerType      PaymentProviderType
+  method            PaymentMethodKind
+  status            PaymentAttemptStatus @default(PENDING)
+  requestPayload    Json?
+  responsePayload   Json?
+  externalReference String?
+  errorCode         String?
+  errorMessage      String?
+  startedAt         DateTime             @default(now())
+  finishedAt        DateTime?
+  createdAt         DateTime             @default(now())
+  paymentIntent     PaymentIntent        @relation(fields: [paymentIntentId], references: [id], onDelete: Cascade)
+  paymentAllocation PaymentAllocation    @relation(fields: [paymentAllocationId], references: [id], onDelete: Cascade)
+  tenant            Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store             Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order             Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, storeId, createdAt])
+  @@index([paymentIntentId, createdAt])
+  @@index([paymentAllocationId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model PaymentProviderConfig {
+  id                       String              @id @default(uuid()) @db.Uuid
+  tenantId                 String              @db.Uuid
+  storeId                  String?             @db.Uuid
+  providerKey              String
+  providerType             PaymentProviderType
+  method                   PaymentMethodKind
+  enabled                  Boolean             @default(true)
+  priority                 Int                 @default(100)
+  allowedChannels          OrderChannel[]
+  autoConfirmOrderOnSuccess Boolean            @default(false)
+  settings                 Json?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  tenant                   Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store                    Store?              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, method, enabled, priority])
+  @@index([storeId, method, enabled, priority])
+}
+
+model AnalyticsSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  storeId         String?  @db.Uuid
+  kind            String
+  periodStart     DateTime
+  periodEnd       DateTime
+  payload         Json
+  createdByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store           Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdByUser   User?    @relation("AnalyticsSnapshotCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, kind, createdAt])
+  @@index([storeId, kind, createdAt])
+  @@index([periodStart, periodEnd])
+}
+
+model KitchenTicket {
+  id            String              @id @default(uuid()) @db.Uuid
+  orderId       String              @db.Uuid
+  tenantId      String              @db.Uuid
+  storeId       String              @db.Uuid
+  stationKey    String
+  status        KitchenTicketStatus @default(NEW)
+  sourceChannel OrderChannel
+  displayNumber String
+  note          String?
+  itemCount     Int                 @default(0)
+  startedAt     DateTime?
+  readyAt       DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  order         Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store         Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  items         KitchenTicketItem[]
+
+  @@unique([orderId, stationKey])
+  @@index([tenantId, storeId, status, createdAt])
+  @@index([storeId, stationKey, status, createdAt])
+}
+
+model KitchenTicketItem {
+  id          String        @id @default(uuid()) @db.Uuid
+  ticketId    String        @db.Uuid
+  orderItemId String        @db.Uuid
+  productId   String        @db.Uuid
+  variantId   String?       @db.Uuid
+  quantity    Int
+  lineTotal   Decimal       @db.Decimal(12, 2)
+  snapshot    Json
+  createdAt   DateTime      @default(now())
+  ticket      KitchenTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@index([orderItemId])
+}
+
+model KioskPaymentHandoff {
+  id                String                    @id @default(uuid()) @db.Uuid
+  orderId           String                    @db.Uuid
+  tenantId          String                    @db.Uuid
+  storeId           String                    @db.Uuid
+  deviceId          String                    @db.Uuid
+  method            PaymentMethodKind
+  status            KioskPaymentHandoffStatus @default(INITIATED)
+  amount            Decimal                   @db.Decimal(12, 2)
+  provider          String
+  externalReference String?
+  createdAt         DateTime                  @default(now())
+  completedAt       DateTime?
+  order             Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store             Store                     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  device            Device                    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, storeId, createdAt])
+  @@index([deviceId, createdAt])
+  @@index([orderId, createdAt])
 }

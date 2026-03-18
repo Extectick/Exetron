@@ -16,7 +16,18 @@ export default tseslint.config(
     ]
   },
   js.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      }
+    }
+  },
+  ...tseslint.configs.recommendedTypeChecked.map((config) => ({
+    ...config,
+    files: ["**/*.{ts,tsx,mts,cts}"]
+  })),
   {
     files: ["**/*.{ts,tsx,mts,cts}"],
     languageOptions: {

@@ -1,19 +1,32 @@
 # Exetron
 
 Exetron is a multi-tenant SaaS platform for offline business automation. This
-repository implements the `PHASE 0 -> PHASE 2` plan from
+repository implements the `PHASE 0 -> PHASE 10` plan from
 `roadmap_task_ai_master_spec`.
 
 ## Workspace
 
 - `apps/api` - NestJS modular monolith and platform core REST API
-- `apps/web` - Next.js admin control plane
-- `apps/mobile` - Expo scaffold for future POS and kiosk flows
+- `apps/web` - Next.js admin control plane, owner cabinet, payment admin pages, and public kiosk UI
+- `apps/mobile` - Expo POS runtime with offline-lite cache, queue replay, and payment processing
 - `packages/config` - shared environment contracts
 - `packages/contracts` - shared DTO and API shapes
 - `packages/database` - Prisma schema, migrations, generated client, seed data
 - `packages/types` - shared primitive types and request context
 - `roadmap_task_ai_master_spec` - source of truth for planning and progress notes
+
+Current implemented scope includes:
+- PHASE 0 foundation and monorepo bootstrap
+- PHASE 1 platform core: auth, tenants, stores, users, roles, devices, audit, settings, feature flags
+- PHASE 2 catalog/pricing: categories, products, variants, modifiers, price lists, store overrides, compiled catalog, price preview
+- PHASE 3 orders core: carts, checkout, order lifecycle transitions, order events, kitchen handoff contract
+- PHASE 4 POS runtime: shifts, POS sessions, POS bootstrap, split payment intent capture, offline-lite mobile queue sync
+- PHASE 5 kitchen & board: kitchen tickets, station routing basics, realtime board feed, thin kitchen/order-board web pages
+- PHASE 6 kiosk: public kiosk bootstrap, branded self-service UI, kiosk checkout, kitchen integration
+- PHASE 7 payments: canonical payment abstraction, provider configs, payment attempts, reconciliation summary, kiosk/POS payment unification
+- PHASE 8 analytics: owner cabinet dashboard, revenue summaries, store comparison, top products, and report snapshots
+- PHASE 9 customization: branding configs, customization rules, effective evaluation, and channel/point-specific behavior
+- PHASE 10 hardening: structured logs, request ids, readiness/metrics endpoints, CI/CD gates, and production ops docs
 
 ## Quick Start
 
@@ -24,7 +37,7 @@ repository implements the `PHASE 0 -> PHASE 2` plan from
 5. Run `corepack pnpm db:generate`.
 6. Run `corepack pnpm db:deploy` for existing migrations, or `corepack pnpm --filter @exetron/database db:migrate -- --name <migration_name>` while developing new schema changes.
 7. Run `corepack pnpm db:seed`.
-8. Run `corepack pnpm dev`.
+8. Run `corepack pnpm dev` for API + web, or `corepack pnpm dev:all` to include Expo mobile.
 
 ## Verification
 
@@ -32,8 +45,38 @@ repository implements the `PHASE 0 -> PHASE 2` plan from
 - `corepack pnpm typecheck`
 - `corepack pnpm test`
 - `corepack pnpm test:e2e`
+- `corepack pnpm test:critical`
 - `corepack pnpm build`
 
 Dockerized runtime verification is working with project Postgres on
 `localhost:5433`. API unit tests, live Postgres e2e smoke, workspace lint,
-typecheck, test and build all pass.
+typecheck, test and build all pass through PHASE 10.
+
+The root dev launcher automatically selects the next free port when `3000`,
+`3001`, or `8081` are already busy and prints the final port map on startup.
+
+For kiosk runtime, register an active `KIOSK` device and open
+`http://localhost:3000/kiosk/<deviceId>`.
+
+For payment administration, use:
+- `/payment-provider-configs`
+- `/payments`
+- `/payment-reconciliation`
+
+For owner analytics, use:
+- `/owner-cabinet`
+
+For customization management, use:
+- `/customization`
+
+For production hardening and probes, use:
+- `/health`
+- `/health/live`
+- `/health/readiness`
+- `/health/metrics`
+
+Operational docs:
+- `docs/operations/production-readiness.md`
+- `docs/operations/migration-safety-checklist.md`
+- `docs/operations/performance-review.md`
+- `docs/operations/security-hardening.md`

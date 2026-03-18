@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   getStoreSettings,
   getTenantSettings,
@@ -13,7 +13,7 @@ export default function SettingsPage() {
   const { session } = useAuth();
   const [tenantSettings, setTenantSettings] = useState<string>("[]");
   const [storeSettings, setStoreSettings] = useState<string>("[]");
-  const [tenantDraft, setTenantDraft] = useState({ key: "", value: "{}" });
+  const [tenantDraft, setTenantDraft] = useState({ tenantId: "", key: "", value: "{}" });
   const [storeDraft, setStoreDraft] = useState({
     storeId: "",
     key: "",
@@ -21,18 +21,31 @@ export default function SettingsPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  async function loadTenantSettings() {
+  const sessionTenantId = session?.me?.claims.tenantId ?? "";
+  const effectiveTenantId = sessionTenantId || tenantDraft.tenantId.trim();
+
+  const loadTenantSettings = useCallback(async () => {
     if (!session?.accessToken) {
       return;
     }
 
-    const response = await getTenantSettings(session.accessToken);
+    if (!effectiveTenantId) {
+      setTenantSettings("[]");
+      return;
+    }
+
+    const response = await getTenantSettings(session.accessToken, effectiveTenantId);
+    setError(null);
     setTenantSettings(JSON.stringify(response.items, null, 2));
-  }
+  }, [effectiveTenantId, session?.accessToken]);
 
   useEffect(() => {
+    if (!sessionTenantId) {
+      return;
+    }
+
     void loadTenantSettings();
-  }, [session?.accessToken]);
+  }, [loadTenantSettings, sessionTenantId, session?.accessToken]);
 
   return (
     <div className="split-grid">
@@ -55,13 +68,27 @@ export default function SettingsPage() {
             if (!session?.accessToken) {
               return;
             }
-            const tenantValue = JSON.parse(tenantDraft.value) as Record<string, unknown>;
+            if (!effectiveTenantId) {
+              setError("Tenant ID is required for platform admin settings access.");
+              return;
+            }
+
+            let tenantValue: Record<string, unknown>;
+
+            try {
+              tenantValue = JSON.parse(tenantDraft.value) as Record<string, unknown>;
+            } catch {
+              setError("Tenant setting JSON must be valid.");
+              return;
+            }
+
             void upsertTenantSetting(
               {
                 key: tenantDraft.key,
                 value: tenantValue
               },
-              session.accessToken
+              session.accessToken,
+              effectiveTenantId
             )
               .then(() => loadTenantSettings())
               .catch((caughtError) =>
@@ -71,6 +98,17 @@ export default function SettingsPage() {
               );
           }}
         >
+          {!sessionTenantId ? (
+            <label className="field">
+              <span>Tenant ID</span>
+              <input
+                value={tenantDraft.tenantId}
+                onChange={(event) =>
+                  setTenantDraft((current) => ({ ...current, tenantId: event.target.value }))
+                }
+              />
+            </label>
+          ) : null}
           <label className="field">
             <span>Key</span>
             <input
@@ -128,7 +166,16 @@ export default function SettingsPage() {
             if (!session?.accessToken) {
               return;
             }
-            const storeValue = JSON.parse(storeDraft.value) as Record<string, unknown>;
+
+            let storeValue: Record<string, unknown>;
+
+            try {
+              storeValue = JSON.parse(storeDraft.value) as Record<string, unknown>;
+            } catch {
+              setError("Store setting JSON must be valid.");
+              return;
+            }
+
             void upsertStoreSetting(
               {
                 storeId: storeDraft.storeId,
@@ -137,7 +184,10 @@ export default function SettingsPage() {
               },
               session.accessToken
             )
-              .then(() => getStoreSettings(storeDraft.storeId, session.accessToken))
+              .then(() => {
+                setError(null);
+                return getStoreSettings(storeDraft.storeId, session.accessToken);
+              })
               .then((response) => setStoreSettings(JSON.stringify(response.items, null, 2)))
               .catch((caughtError) =>
                 setError(

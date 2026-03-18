@@ -6,6 +6,32 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  PORT: 3001
+  LOG_LEVEL: error
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/exetron?schema=public
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/exetron?schema=public
+  REDIS_URL: redis://localhost:6379
+  JWT_ACCESS_SECRET: ci-access-secret
+  JWT_REFRESH_SECRET: ci-refresh-secret
+  JWT_ACCESS_TTL: 15m
+  JWT_REFRESH_TTL: 30d
+  MINIO_ENDPOINT: localhost
+  MINIO_PORT: 9000
+  MINIO_ROOT_USER: minio
+  MINIO_ROOT_PASSWORD: minio123
+  MINIO_BUCKET: exetron
+  NEXT_PUBLIC_API_URL: http://localhost:3001
+  EXPO_PUBLIC_API_URL: http://localhost:3001
+  PLATFORM_ADMIN_EMAIL: admin@exetron.local
+  PLATFORM_ADMIN_PASSWORD: ChangeMe123!
 
 jobs:
   verify:
@@ -19,6 +45,67 @@ jobs:
         with:
           version: 10.11.0
       - run: pnpm install --frozen-lockfile=false
+      - run: pnpm db:generate
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm build
+
+  api-e2e:
+    needs: verify
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: exetron
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d exetron"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm db:generate
+      - run: pnpm db:deploy
+      - run: pnpm test:e2e
+
+  package-artifacts:
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs:
+      - verify
+      - api-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.11.0
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm db:generate
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exetron-release-bundle
+          path: |
+            apps/api/dist
+            apps/web/.next
+            apps/mobile
+            packages/database/prisma/migrations
+            docker-compose.yml
+            .env.example
+            docs/operations

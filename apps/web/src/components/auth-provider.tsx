@@ -2,8 +2,12 @@
 
 import type { AuthMeResponse, AuthTokensResponse, LoginRequest } from "@exetron/contracts";
 import {
+  createElement,
   createContext,
   startTransition,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -26,19 +30,19 @@ interface AuthContextValue {
 const storageKey = "exetron.session";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }): ReactElement {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("loading");
-  const persistSession = (nextSession: StoredSession | null) => {
+  const persistSession = useCallback((nextSession: StoredSession | null) => {
     if (!nextSession) {
       localStorage.removeItem(storageKey);
       return;
     }
 
     localStorage.setItem(storageKey, JSON.stringify(nextSession));
-  };
+  }, []);
 
-  async function hydrateSession() {
+  const hydrateSession = useCallback(async () => {
     const rawSession = localStorage.getItem(storageKey);
 
     if (!rawSession) {
@@ -60,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setStatus("guest");
     }
-  }
+  }, [persistSession]);
 
   useEffect(() => {
     void hydrateSession();
@@ -112,7 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [persistSession, session, status]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return createElement(AuthContext.Provider, { value }, children);
 }
 
 export function useAuth() {

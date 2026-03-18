@@ -156,9 +156,14 @@ pre {
 .content-grid,
 .workspace-grid,
 .dashboard-grid,
+.stack-layout,
 .split-grid {
   display: grid;
   gap: 1.25rem;
+}
+
+.stack-layout {
+  align-content: start;
 }
 
 .dashboard-grid {
@@ -285,6 +290,12 @@ th {
 
 .mini-button {
   padding: 0.5rem 0.8rem;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
 }
 
 .error-banner {

@@ -15,7 +15,14 @@ export const adminNavigation: AdminNavItem[] = [
   { href: "/users", label: "Users" },
   { href: "/roles", label: "Roles & Permissions" },
   { href: "/devices", label: "Devices" },
+  { href: "/owner-cabinet", label: "Owner Cabinet" },
+  { href: "/payment-provider-configs", label: "Payment Configs" },
+  { href: "/payments", label: "Payments" },
+  { href: "/payment-reconciliation", label: "Reconciliation" },
+  { href: "/kitchen", label: "Kitchen" },
+  { href: "/order-board", label: "Order Board" },
   { href: "/settings", label: "Settings" },
   { href: "/feature-flags", label: "Feature Flags" },
+  { href: "/customization", label: "Customization" },
   { href: "/audit", label: "Audit Trail" }
 ];

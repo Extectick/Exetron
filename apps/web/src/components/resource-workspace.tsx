@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useCallback, useEffect, useState } from "react";
 import { createResource, listResource, patchResource } from "../lib/api";
 import { useAuth } from "./auth-provider";
 
@@ -107,7 +107,7 @@ export function ResourceWorkspace<TItem extends Record<string, unknown>>({
   const [busy, setBusy] = useState(false);
   const resolvedEndpoint = endpoint ?? resolveEndpointTemplate(endpointTemplate, draft);
 
-  async function loadItems() {
+  const loadItems = useCallback(async () => {
     if (!session?.accessToken || !resolvedEndpoint) {
       return;
     }
@@ -124,11 +124,11 @@ export function ResourceWorkspace<TItem extends Record<string, unknown>>({
     } finally {
       setBusy(false);
     }
-  }
+  }, [resolvedEndpoint, session?.accessToken]);
 
   useEffect(() => {
     void loadItems();
-  }, [resolvedEndpoint, session?.accessToken]);
+  }, [loadItems, resolvedEndpoint, session?.accessToken]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

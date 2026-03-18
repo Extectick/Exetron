@@ -340,7 +340,7 @@ function mapStoreCatalogOverride(override: {
 }
 
 @Injectable()
-class PricingService {
+export class PricingService {
   constructor(
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService
@@ -809,117 +809,125 @@ class PricingService {
     context: RequestContext,
     dto: PricePreviewDto
   ): Promise<PricePreviewResponse> {
-    return this.dbContext.withRequestContext(context, async (tx) => {
-      const store = await tx.store.findUniqueOrThrow({
-        where: { id: dto.storeId }
-      });
-      this.accessControl.resolveTenantId(context, dto.tenantId ?? store.tenantId);
-      this.accessControl.enforceStoreAccess(context, store.id);
+    return this.dbContext.withRequestContext(context, (tx) =>
+      this.resolveSelectionTx(tx, context, dto)
+    );
+  }
 
-      const product = await tx.product.findUniqueOrThrow({
-        where: { id: dto.productId }
-      });
-
-      if (product.tenantId !== store.tenantId) {
-        throw new BadRequestException("Product tenant mismatch.");
-      }
-
-      const variant = dto.variantId
-        ? await tx.productVariant.findUniqueOrThrow({
-            where: { id: dto.variantId }
-          })
-        : null;
-
-      if (variant && variant.productId !== product.id) {
-        throw new BadRequestException("Variant does not belong to the requested product.");
-      }
-
-      const modifierOptions = dto.modifierOptionIds?.length
-        ? await tx.modifierOption.findMany({
-            where: {
-              id: { in: dto.modifierOptionIds }
-            }
-          })
-        : [];
-
-      if (modifierOptions.length !== (dto.modifierOptionIds?.length ?? 0)) {
-        throw new BadRequestException("One or more modifier options were not found.");
-      }
-
-      const priceList = dto.priceListId
-        ? await tx.priceList.findUniqueOrThrow({
-            where: { id: dto.priceListId },
-            include: { items: true }
-          })
-        : null;
-
-      if (priceList && priceList.tenantId !== store.tenantId) {
-        throw new BadRequestException("Price list tenant mismatch.");
-      }
-
-      const overrideTargets: Array<{ targetType: CatalogTargetType; targetId: string }> = [
-        { targetType: "PRODUCT", targetId: product.id },
-        ...(variant ? [{ targetType: "VARIANT" as const, targetId: variant.id }] : []),
-        ...modifierOptions.map((option) => ({
-          targetType: "MODIFIER_OPTION" as const,
-          targetId: option.id
-        }))
-      ];
-
-      const overrides = await tx.storeCatalogOverride.findMany({
-        where: {
-          storeId: store.id,
-          OR: overrideTargets.map((target) => ({
-            targetType: target.targetType,
-            targetId: target.targetId
-          }))
-        }
-      });
-      const overrideMap = new Map(
-        overrides.map((override) => [targetKey(override.targetType, override.targetId), override])
-      );
-      const priceItemMap = new Map(
-        (priceList?.items ?? []).map((item) => [targetKey(item.targetType, item.targetId), item])
-      );
-
-      const modifierBreakdown = modifierOptions.map((option) => ({
-        optionId: option.id,
-        priceDelta:
-          decimalToString(
-            overrideMap.get(targetKey("MODIFIER_OPTION", option.id))?.priceOverride
-          ) ??
-          decimalToString(priceItemMap.get(targetKey("MODIFIER_OPTION", option.id))?.price) ??
-          decimalToString(option.priceDelta) ??
-          "0.00"
-      }));
-
-      const priceTargetType = variant ? "VARIANT" : "PRODUCT";
-      const priceTargetId = variant?.id ?? product.id;
-      const resolved = resolvePrice({
-        storeOverridePrice: decimalToString(
-          overrideMap.get(targetKey(priceTargetType, priceTargetId))?.priceOverride
-        ),
-        priceListPrice: decimalToString(
-          priceItemMap.get(targetKey(priceTargetType, priceTargetId))?.price
-        ),
-        variantBasePrice: decimalToString(variant?.basePrice),
-        productBasePrice: decimalToString(product.basePrice),
-        modifiers: modifierBreakdown
-      });
-
-      return {
-        tenantId: store.tenantId,
-        storeId: store.id,
-        productId: product.id,
-        variantId: variant?.id ?? null,
-        priceListId: priceList?.id ?? null,
-        basePrice: resolved.basePrice,
-        modifierTotal: resolved.modifierTotal,
-        finalPrice: resolved.finalPrice,
-        source: resolved.source,
-        modifierBreakdown
-      };
+  async resolveSelectionTx(
+    tx: Prisma.TransactionClient,
+    context: RequestContext,
+    dto: PricePreviewRequest
+  ): Promise<PricePreviewResponse> {
+    const store = await tx.store.findUniqueOrThrow({
+      where: { id: dto.storeId }
     });
+    this.accessControl.resolveTenantId(context, dto.tenantId ?? store.tenantId);
+    this.accessControl.enforceStoreAccess(context, store.id);
+
+    const product = await tx.product.findUniqueOrThrow({
+      where: { id: dto.productId }
+    });
+
+    if (product.tenantId !== store.tenantId) {
+      throw new BadRequestException("Product tenant mismatch.");
+    }
+
+    const variant = dto.variantId
+      ? await tx.productVariant.findUniqueOrThrow({
+          where: { id: dto.variantId }
+        })
+      : null;
+
+    if (variant && variant.productId !== product.id) {
+      throw new BadRequestException("Variant does not belong to the requested product.");
+    }
+
+    const modifierOptions = dto.modifierOptionIds?.length
+      ? await tx.modifierOption.findMany({
+          where: {
+            id: { in: dto.modifierOptionIds }
+          }
+        })
+      : [];
+
+    if (modifierOptions.length !== (dto.modifierOptionIds?.length ?? 0)) {
+      throw new BadRequestException("One or more modifier options were not found.");
+    }
+
+    const priceList = dto.priceListId
+      ? await tx.priceList.findUniqueOrThrow({
+          where: { id: dto.priceListId },
+          include: { items: true }
+        })
+      : null;
+
+    if (priceList && priceList.tenantId !== store.tenantId) {
+      throw new BadRequestException("Price list tenant mismatch.");
+    }
+
+    const overrideTargets: Array<{ targetType: CatalogTargetType; targetId: string }> = [
+      { targetType: "PRODUCT", targetId: product.id },
+      ...(variant ? [{ targetType: "VARIANT" as const, targetId: variant.id }] : []),
+      ...modifierOptions.map((option) => ({
+        targetType: "MODIFIER_OPTION" as const,
+        targetId: option.id
+      }))
+    ];
+
+    const overrides = await tx.storeCatalogOverride.findMany({
+      where: {
+        storeId: store.id,
+        OR: overrideTargets.map((target) => ({
+          targetType: target.targetType,
+          targetId: target.targetId
+        }))
+      }
+    });
+    const overrideMap = new Map(
+      overrides.map((override) => [targetKey(override.targetType, override.targetId), override])
+    );
+    const priceItemMap = new Map(
+      (priceList?.items ?? []).map((item) => [targetKey(item.targetType, item.targetId), item])
+    );
+
+    const modifierBreakdown = modifierOptions.map((option) => ({
+      optionId: option.id,
+      priceDelta:
+        decimalToString(
+          overrideMap.get(targetKey("MODIFIER_OPTION", option.id))?.priceOverride
+        ) ??
+        decimalToString(priceItemMap.get(targetKey("MODIFIER_OPTION", option.id))?.price) ??
+        decimalToString(option.priceDelta) ??
+        "0.00"
+    }));
+
+    const priceTargetType = variant ? "VARIANT" : "PRODUCT";
+    const priceTargetId = variant?.id ?? product.id;
+    const resolved = resolvePrice({
+      storeOverridePrice: decimalToString(
+        overrideMap.get(targetKey(priceTargetType, priceTargetId))?.priceOverride
+      ),
+      priceListPrice: decimalToString(
+        priceItemMap.get(targetKey(priceTargetType, priceTargetId))?.price
+      ),
+      variantBasePrice: decimalToString(variant?.basePrice),
+      productBasePrice: decimalToString(product.basePrice),
+      modifiers: modifierBreakdown
+    });
+
+    return {
+      tenantId: store.tenantId,
+      storeId: store.id,
+      productId: product.id,
+      variantId: variant?.id ?? null,
+      priceListId: priceList?.id ?? null,
+      basePrice: resolved.basePrice,
+      modifierTotal: resolved.modifierTotal,
+      finalPrice: resolved.finalPrice,
+      source: resolved.source,
+      modifierBreakdown
+    };
   }
 
   private async ensureCatalogTargets(
@@ -1089,6 +1097,7 @@ class PricingController {
 
 @Module({
   controllers: [PricingController],
-  providers: [PricingService]
+  providers: [PricingService],
+  exports: [PricingService]
 })
 export class PricingModule {}

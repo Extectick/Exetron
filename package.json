@@ -8,11 +8,14 @@
   },
   "scripts": {
     "build": "node scripts/run-turbo.mjs build",
-    "dev": "node scripts/run-turbo.mjs dev --parallel",
+    "dev": "node scripts/dev.mjs",
+    "dev:all": "node scripts/dev.mjs --mobile",
+    "dev:mobile": "node scripts/dev.mjs --mobile-only",
     "lint": "node scripts/run-turbo.mjs lint",
     "typecheck": "node scripts/run-turbo.mjs typecheck",
     "test": "node scripts/run-turbo.mjs test",
     "test:e2e": "node scripts/run-turbo.mjs test:e2e",
+    "test:critical": "node scripts/run-turbo.mjs test:e2e",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "infra:up": "docker compose up -d",
@@ -33,6 +36,10 @@
     "typescript-eslint": "^8.28.0"
   },
   "pnpm": {
+    "overrides": {
+      "@types/react": "19.2.14",
+      "@types/react-dom": "19.2.3"
+    },
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@prisma/client",

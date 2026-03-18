@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Sora } from "next/font/google";
+import { createElement, type ReactNode } from "react";
 import { AuthProvider } from "../components/auth-provider";
 import "./globals.css";
 
@@ -22,12 +23,12 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children
 }: Readonly<{
-  children: React.ReactNode;
+  children: ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${sora.variable} ${mono.variable}`}>
-        <AuthProvider>{children}</AuthProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning className={`${sora.variable} ${mono.variable}`}>
+        {createElement(AuthProvider, null, children)}
       </body>
     </html>
   );

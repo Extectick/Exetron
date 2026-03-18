@@ -1,12 +1,29 @@
 import type {
   AppScope,
+  AnalyticsSnapshotKind,
   AvailabilityTargetType,
+  CartStatus,
   CatalogTargetType,
+  CustomizationChannel,
+  CustomizationRuleStatus,
   DeviceKind,
   JwtClaims,
+  KitchenBoardStatus,
+  KioskPaymentHandoffStatus,
+  PaymentAllocationStatus,
+  PaymentAttemptStatus,
+  KitchenTicketStatus,
   ModifierSelectionMode,
+  OrderChannel,
+  OrderStatus,
+  PaymentIntentStatus,
+  PaymentMethodKind,
+  PaymentProviderType,
   PaginationResult,
-  PriceSource
+  PriceSource,
+  PosSessionStatus,
+  PosShiftStatus,
+  RefundStatus
 } from "@exetron/types";
 
 export interface ApiErrorResponse {
@@ -156,6 +173,50 @@ export interface FeatureFlagDto {
   rules: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BrandingConfigDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  channel: CustomizationChannel;
+  pointKey: string | null;
+  scopeKey: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomizationRuleDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  channel: CustomizationChannel | null;
+  pointKey: string | null;
+  key: string;
+  description: string | null;
+  status: CustomizationRuleStatus;
+  priority: number;
+  conditions: Record<string, unknown> | null;
+  actions: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomizationEvaluationDto {
+  tenantId: string;
+  storeId: string | null;
+  channel: CustomizationChannel;
+  pointKey: string | null;
+  settings: Record<string, Record<string, unknown>>;
+  featureFlags: Record<string, boolean>;
+  branding: Record<string, unknown> | null;
+  appliedRules: Array<{
+    id: string;
+    key: string;
+    description: string | null;
+    priority: number;
+  }>;
 }
 
 export interface AvailabilityWindowDto {
@@ -369,6 +430,355 @@ export interface PricePreviewResponse {
   }>;
 }
 
+export interface CartItemDto {
+  id: string;
+  cartId: string;
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  priceListId: string | null;
+  unitBasePrice: string | null;
+  modifierTotal: string;
+  lineTotal: string;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  modifiers: Array<{
+    id: string;
+    modifierGroupId: string;
+    modifierOptionId: string;
+    nameSnapshot: string;
+    priceDelta: string;
+  }>;
+}
+
+export interface CartDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  channel: OrderChannel;
+  status: CartStatus;
+  customerName: string | null;
+  customerPhone: string | null;
+  note: string | null;
+  subtotal: string;
+  modifierTotal: string;
+  total: string;
+  deviceId: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: CartItemDto[];
+}
+
+export interface OrderItemDto {
+  id: string;
+  orderId: string;
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  unitBasePrice: string | null;
+  modifierTotal: string;
+  lineTotal: string;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+  modifiers: Array<{
+    id: string;
+    modifierGroupId: string;
+    modifierOptionId: string;
+    nameSnapshot: string;
+    priceDelta: string;
+  }>;
+}
+
+export interface OrderDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  cartId: string | null;
+  number: string;
+  channel: OrderChannel;
+  status: OrderStatus;
+  refundStatus: RefundStatus;
+  customerName: string | null;
+  customerPhone: string | null;
+  note: string | null;
+  subtotal: string;
+  modifierTotal: string;
+  total: string;
+  cancelReason: string | null;
+  deviceId: string | null;
+  createdByUserId: string | null;
+  placedAt: string;
+  confirmedAt: string | null;
+  readyAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItemDto[];
+}
+
+export interface OrderEventDto {
+  id: string;
+  orderId: string;
+  tenantId: string;
+  storeId: string;
+  type: string;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface PosShiftDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  deviceId: string;
+  openedByUserId: string;
+  status: PosShiftStatus;
+  openingCashAmount: string | null;
+  closingCashAmount: string | null;
+  openedAt: string;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PosSessionDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  deviceId: string;
+  shiftId: string;
+  userId: string;
+  status: PosSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  lastHeartbeatAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentAllocationDto {
+  id: string;
+  paymentIntentId: string;
+  method: PaymentMethodKind;
+  amount: string;
+  status: PaymentAllocationStatus;
+  providerKey: string | null;
+  externalReference: string | null;
+  completedAt: string | null;
+  failedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export interface PaymentIntentDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string;
+  channel: OrderChannel;
+  deviceId: string | null;
+  posSessionId: string | null;
+  shiftId: string | null;
+  status: PaymentIntentStatus;
+  totalAmount: string;
+  paidAmount: string;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  allocations: PaymentAllocationDto[];
+}
+
+export interface PaymentAttemptDto {
+  id: string;
+  paymentIntentId: string;
+  paymentAllocationId: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string;
+  providerKey: string;
+  providerType: PaymentProviderType;
+  method: PaymentMethodKind;
+  status: PaymentAttemptStatus;
+  requestPayload: Record<string, unknown> | null;
+  responsePayload: Record<string, unknown> | null;
+  externalReference: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+}
+
+export interface PaymentProviderConfigDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  providerKey: string;
+  providerType: PaymentProviderType;
+  method: PaymentMethodKind;
+  enabled: boolean;
+  priority: number;
+  allowedChannels: OrderChannel[];
+  autoConfirmOrderOnSuccess: boolean;
+  settings: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentIntentListItemDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string;
+  orderNumber: string;
+  channel: OrderChannel;
+  status: PaymentIntentStatus;
+  totalAmount: string;
+  paidAmount: string;
+  customerName: string | null;
+  allocationStatuses: PaymentAllocationStatus[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentReconciliationSummaryDto {
+  tenantId: string | null;
+  storeId: string | null;
+  generatedAt: string;
+  intentsByStatus: Array<{
+    status: PaymentIntentStatus;
+    count: number;
+    totalAmount: string;
+    paidAmount: string;
+  }>;
+  allocationsByMethod: Array<{
+    method: PaymentMethodKind;
+    status: PaymentAllocationStatus;
+    count: number;
+    amount: string;
+  }>;
+  failedAttempts: {
+    count: number;
+  };
+}
+
+export interface PosBootstrapResponse {
+  tenantId: string;
+  storeId: string;
+  deviceId: string;
+  activeShift: PosShiftDto | null;
+  activeSession: PosSessionDto | null;
+  catalog: CompiledCatalogResponse;
+  featureFlags: FeatureFlagDto[];
+  tenantSettings: TenantSettingDto[];
+  storeSettings: StoreSettingDto[];
+}
+
+export interface KitchenTicketItemDto {
+  id: string;
+  ticketId: string;
+  orderItemId: string;
+  productId: string;
+  variantId: string | null;
+  quantity: number;
+  lineTotal: string;
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface KitchenTicketDto {
+  id: string;
+  orderId: string;
+  tenantId: string;
+  storeId: string;
+  stationKey: string;
+  status: KitchenTicketStatus;
+  sourceChannel: OrderChannel;
+  displayNumber: string;
+  note: string | null;
+  itemCount: number;
+  startedAt: string | null;
+  readyAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: KitchenTicketItemDto[];
+}
+
+export interface KitchenBoardEntryDto {
+  orderId: string;
+  tenantId: string;
+  storeId: string;
+  number: string;
+  channel: OrderChannel;
+  orderStatus: OrderStatus;
+  boardStatus: KitchenBoardStatus;
+  customerName: string | null;
+  note: string | null;
+  placedAt: string;
+  readyAt: string | null;
+  completedAt: string | null;
+  ticketStatuses: Array<{
+    ticketId: string;
+    stationKey: string;
+    status: KitchenTicketStatus;
+  }>;
+}
+
+export interface RealtimeEventEnvelope<TPayload = Record<string, unknown>> {
+  type: string;
+  tenantId: string;
+  storeId: string;
+  payload: TPayload;
+  emittedAt: string;
+}
+
+export interface KioskBrandingDto {
+  themeName: string;
+  logoText: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  accentColor: string;
+  surfaceColor: string;
+}
+
+export interface KioskRulesDto {
+  allowNotes: boolean;
+  requireCustomerName: boolean;
+  allowedPaymentMethods: PaymentMethodKind[];
+  autoConfirmPaidOrders: boolean;
+}
+
+export interface KioskBootstrapResponse {
+  tenantId: string;
+  storeId: string;
+  deviceId: string;
+  storeName: string;
+  deviceName: string;
+  branding: KioskBrandingDto;
+  rules: KioskRulesDto;
+  catalog: CompiledCatalogResponse;
+}
+
+export interface KioskPaymentHandoffDto {
+  id: string;
+  orderId: string;
+  tenantId: string;
+  storeId: string;
+  deviceId: string;
+  method: PaymentMethodKind;
+  status: KioskPaymentHandoffStatus;
+  amount: string;
+  provider: string;
+  externalReference: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export type ListResponse<TItem> = PaginationResult<TItem>;
 
 export interface CreateTenantRequest {
@@ -479,6 +889,53 @@ export interface UpsertFeatureFlagRequest {
   kind?: "BOOLEAN" | "PERCENTAGE";
   rolloutPercentage?: number | null;
   rules?: Record<string, unknown> | null;
+}
+
+export interface CreateBrandingConfigRequest {
+  tenantId: string;
+  storeId?: string | null;
+  channel: CustomizationChannel;
+  pointKey?: string | null;
+  config: Record<string, unknown>;
+}
+
+export interface UpdateBrandingConfigRequest {
+  storeId?: string | null;
+  channel?: CustomizationChannel;
+  pointKey?: string | null;
+  config?: Record<string, unknown>;
+}
+
+export interface CreateCustomizationRuleRequest {
+  tenantId: string;
+  storeId?: string | null;
+  channel?: CustomizationChannel | null;
+  pointKey?: string | null;
+  key: string;
+  description?: string | null;
+  priority?: number;
+  conditions?: Record<string, unknown> | null;
+  actions: Record<string, unknown>;
+}
+
+export interface UpdateCustomizationRuleRequest {
+  storeId?: string | null;
+  channel?: CustomizationChannel | null;
+  pointKey?: string | null;
+  key?: string;
+  description?: string | null;
+  status?: CustomizationRuleStatus;
+  priority?: number;
+  conditions?: Record<string, unknown> | null;
+  actions?: Record<string, unknown>;
+}
+
+export interface EvaluateCustomizationRequest {
+  tenantId?: string;
+  storeId?: string | null;
+  channel: CustomizationChannel;
+  pointKey?: string | null;
+  inputs?: Record<string, unknown> | null;
 }
 
 export interface AvailabilityWindowInput {
@@ -636,8 +1093,223 @@ export interface UpdateStoreCatalogOverrideRequest {
   priceOverride?: string | null;
 }
 
+export interface CreateCartRequest {
+  tenantId?: string;
+  storeId: string;
+  channel?: OrderChannel;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+  deviceId?: string | null;
+}
+
+export interface UpdateCartRequest {
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+}
+
+export interface AddCartItemRequest {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+  priceListId?: string | null;
+  modifierOptionIds?: string[];
+}
+
+export interface UpdateCartItemRequest {
+  variantId?: string | null;
+  quantity?: number;
+  priceListId?: string | null;
+  modifierOptionIds?: string[];
+}
+
+export interface CheckoutCartRequest {
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+}
+
+export interface TransitionOrderRequest {
+  toStatus: OrderStatus;
+  reason?: string | null;
+  hasExternalPayment?: boolean;
+}
+
+export interface OpenPosShiftRequest {
+  tenantId?: string;
+  storeId: string;
+  deviceId: string;
+  openingCashAmount?: string | null;
+}
+
+export interface ClosePosShiftRequest {
+  closingCashAmount?: string | null;
+}
+
+export interface StartPosSessionRequest {
+  tenantId?: string;
+  storeId: string;
+  deviceId: string;
+  shiftId: string;
+}
+
+export interface EndPosSessionRequest {
+  reason?: string | null;
+}
+
+export interface RecordPaymentIntentRequest {
+  tenantId?: string;
+  storeId: string;
+  orderId: string;
+  posSessionId: string;
+  allocations: Array<{
+    method: PaymentMethodKind;
+    amount: string;
+  }>;
+}
+
+export interface CreatePaymentIntentRequest {
+  tenantId?: string;
+  storeId: string;
+  orderId: string;
+  channel?: OrderChannel;
+  deviceId?: string | null;
+  posSessionId?: string | null;
+  shiftId?: string | null;
+  allocations: Array<{
+    method: PaymentMethodKind;
+    amount: string;
+  }>;
+}
+
+export interface ProcessPaymentAllocationRequest {
+  providerKey?: string | null;
+}
+
+export interface CancelPaymentIntentRequest {
+  reason?: string | null;
+}
+
+export interface CreatePaymentProviderConfigRequest {
+  tenantId: string;
+  storeId?: string | null;
+  providerKey: string;
+  providerType: PaymentProviderType;
+  method: PaymentMethodKind;
+  enabled?: boolean;
+  priority?: number;
+  allowedChannels?: OrderChannel[];
+  autoConfirmOrderOnSuccess?: boolean;
+  settings?: Record<string, unknown> | null;
+}
+
+export interface UpdatePaymentProviderConfigRequest {
+  storeId?: string | null;
+  providerKey?: string;
+  providerType?: PaymentProviderType;
+  method?: PaymentMethodKind;
+  enabled?: boolean;
+  priority?: number;
+  allowedChannels?: OrderChannel[];
+  autoConfirmOrderOnSuccess?: boolean;
+  settings?: Record<string, unknown> | null;
+}
+
+export interface TransitionKitchenTicketRequest {
+  toStatus: KitchenTicketStatus;
+  reason?: string | null;
+}
+
+export interface KioskCheckoutItemInput {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+  priceListId?: string | null;
+  modifierOptionIds?: string[];
+}
+
+export interface KioskCheckoutRequest {
+  deviceId: string;
+  customerName?: string | null;
+  note?: string | null;
+  paymentMethod: PaymentMethodKind;
+  items: KioskCheckoutItemInput[];
+}
+
+export interface KioskCheckoutResponse {
+  order: OrderDto;
+  paymentHandoff: KioskPaymentHandoffDto;
+}
+
 export interface AdminNavItem {
   href: string;
   label: string;
   requiredScope?: AppScope;
+}
+
+export interface AnalyticsTopProductDto {
+  productId: string;
+  productCode: string | null;
+  productName: string;
+  quantity: number;
+  revenue: string;
+}
+
+export interface AnalyticsRevenueByStoreDto {
+  storeId: string;
+  storeCode: string;
+  storeName: string;
+  paidOrders: number;
+  revenue: string;
+  averageOrderValue: string;
+}
+
+export interface AnalyticsChannelSummaryDto {
+  channel: OrderChannel;
+  paidOrders: number;
+  revenue: string;
+}
+
+export interface AnalyticsRefundCancellationSummaryDto {
+  cancelledOrders: number;
+  cancelledRevenue: string;
+  pendingManualRefunds: number;
+  pendingManualRefundAmount: string;
+}
+
+export interface OwnerCabinetDashboardDto {
+  tenantId: string;
+  storeId: string | null;
+  periodStart: string;
+  periodEnd: string;
+  generatedAt: string;
+  currency: string;
+  totalOrders: number;
+  paidOrders: number;
+  revenue: string;
+  averageOrderValue: string;
+  topProducts: AnalyticsTopProductDto[];
+  revenueByStore: AnalyticsRevenueByStoreDto[];
+  channelSummary: AnalyticsChannelSummaryDto[];
+  refundsAndCancellations: AnalyticsRefundCancellationSummaryDto;
+}
+
+export interface AnalyticsSnapshotDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  kind: AnalyticsSnapshotKind;
+  periodStart: string;
+  periodEnd: string;
+  payload: Record<string, unknown>;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+
+export interface CreateAnalyticsSnapshotRequest {
+  tenantId?: string;
+  storeId?: string | null;
+  periodStart?: string;
+  periodEnd?: string;
 }

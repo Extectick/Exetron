@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getFeatureFlags, upsertFeatureFlag } from "../../../lib/api";
 import { useAuth } from "../../../components/auth-provider";
 
@@ -17,18 +17,31 @@ export default function FeatureFlagsPage() {
     rules: "{}"
   });
   const [error, setError] = useState<string | null>(null);
+  const sessionTenantId = session?.me?.claims.tenantId ?? "";
+  const effectiveTenantId = sessionTenantId || draft.tenantId.trim();
 
-  async function loadFlags() {
+  const loadFlags = useCallback(async () => {
     if (!session?.accessToken) {
       return;
     }
-    const response = await getFeatureFlags(session.accessToken);
+
+    if (!effectiveTenantId) {
+      setItems("[]");
+      return;
+    }
+
+    const response = await getFeatureFlags(session.accessToken, effectiveTenantId);
+    setError(null);
     setItems(JSON.stringify(response.items, null, 2));
-  }
+  }, [effectiveTenantId, session?.accessToken]);
 
   useEffect(() => {
+    if (!sessionTenantId) {
+      return;
+    }
+
     void loadFlags();
-  }, [session?.accessToken]);
+  }, [loadFlags, sessionTenantId, session?.accessToken]);
 
   return (
     <div className="split-grid">
@@ -59,11 +72,23 @@ export default function FeatureFlagsPage() {
             if (!session?.accessToken) {
               return;
             }
-            const rules = JSON.parse(draft.rules) as Record<string, unknown>;
+            if (!effectiveTenantId) {
+              setError("Tenant ID is required for platform admin feature flag access.");
+              return;
+            }
+
+            let rules: Record<string, unknown>;
+
+            try {
+              rules = JSON.parse(draft.rules) as Record<string, unknown>;
+            } catch {
+              setError("Feature flag rules JSON must be valid.");
+              return;
+            }
 
             void upsertFeatureFlag(
               {
-                tenantId: draft.tenantId,
+                tenantId: effectiveTenantId,
                 storeId: draft.storeId || null,
                 key: draft.key,
                 enabled: draft.enabled === "true",
@@ -84,7 +109,6 @@ export default function FeatureFlagsPage() {
           }}
         >
           {[
-            ["tenantId", "Tenant ID"],
             ["storeId", "Store ID (optional)"],
             ["key", "Flag Key"],
             ["rolloutPercentage", "Rollout %"],
@@ -116,6 +140,20 @@ export default function FeatureFlagsPage() {
               )}
             </label>
           ))}
+          {!sessionTenantId ? (
+            <label className="field">
+              <span>Tenant ID</span>
+              <input
+                value={draft.tenantId}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    tenantId: event.target.value
+                  }))
+                }
+              />
+            </label>
+          ) : null}
           <label className="field">
             <span>Enabled</span>
             <select

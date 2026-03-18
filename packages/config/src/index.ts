@@ -35,6 +35,9 @@ const commonSchema = z.object({
 
 const apiSchema = commonSchema.extend({
   PORT: z.coerce.number().default(3001),
+  LOG_LEVEL: z
+    .enum(["error", "warn", "log", "debug", "verbose"])
+    .default("log"),
   MINIO_ENDPOINT: z.string().min(1),
   MINIO_PORT: z.coerce.number().default(9000),
   MINIO_ROOT_USER: z.string().min(1),

@@ -32,6 +32,109 @@ export const priceSources = [
 ] as const;
 export type PriceSource = (typeof priceSources)[number];
 
+export const orderChannels = ["ADMIN", "POS", "KIOSK", "DELIVERY"] as const;
+export type OrderChannel = (typeof orderChannels)[number];
+
+export const cartStatuses = ["OPEN", "CONVERTED"] as const;
+export type CartStatus = (typeof cartStatuses)[number];
+
+export const orderStatuses = [
+  "PLACED",
+  "CONFIRMED",
+  "IN_PREPARATION",
+  "READY",
+  "COMPLETED",
+  "CANCELLED"
+] as const;
+export type OrderStatus = (typeof orderStatuses)[number];
+
+export const refundStatuses = ["NONE", "NOT_REQUIRED", "PENDING_MANUAL"] as const;
+export type RefundStatus = (typeof refundStatuses)[number];
+
+export const posShiftStatuses = ["OPEN", "CLOSED"] as const;
+export type PosShiftStatus = (typeof posShiftStatuses)[number];
+
+export const posSessionStatuses = ["ACTIVE", "ENDED"] as const;
+export type PosSessionStatus = (typeof posSessionStatuses)[number];
+
+export const paymentMethodKinds = ["CASH", "CARD", "QR"] as const;
+export type PaymentMethodKind = (typeof paymentMethodKinds)[number];
+
+export const paymentIntentStatuses = [
+  "PENDING",
+  "PARTIALLY_PAID",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED"
+] as const;
+export type PaymentIntentStatus = (typeof paymentIntentStatuses)[number];
+
+export const paymentAllocationStatuses = [
+  "PENDING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED"
+] as const;
+export type PaymentAllocationStatus = (typeof paymentAllocationStatuses)[number];
+
+export const paymentAttemptStatuses = [
+  "PENDING",
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELLED"
+] as const;
+export type PaymentAttemptStatus = (typeof paymentAttemptStatuses)[number];
+
+export const paymentProviderTypes = [
+  "CASH_MANUAL",
+  "CARD_SIMULATED",
+  "QR_SIMULATED"
+] as const;
+export type PaymentProviderType = (typeof paymentProviderTypes)[number];
+
+export const kitchenTicketStatuses = [
+  "NEW",
+  "IN_PROGRESS",
+  "READY",
+  "COMPLETED",
+  "CANCELLED"
+] as const;
+export type KitchenTicketStatus = (typeof kitchenTicketStatuses)[number];
+
+export const kitchenBoardStatuses = [
+  "NEW",
+  "IN_PROGRESS",
+  "READY",
+  "COMPLETED",
+  "CANCELLED"
+] as const;
+export type KitchenBoardStatus = (typeof kitchenBoardStatuses)[number];
+
+export const kioskPaymentHandoffStatuses = [
+  "INITIATED",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED"
+] as const;
+export type KioskPaymentHandoffStatus = (typeof kioskPaymentHandoffStatuses)[number];
+
+export const analyticsSnapshotKinds = ["OWNER_DASHBOARD"] as const;
+export type AnalyticsSnapshotKind = (typeof analyticsSnapshotKinds)[number];
+
+export const customizationChannels = [
+  "ADMIN",
+  "POS",
+  "KIOSK",
+  "DELIVERY",
+  "KITCHEN",
+  "BOARD",
+  "BACKOFFICE"
+] as const;
+export type CustomizationChannel = (typeof customizationChannels)[number];
+
+export const customizationRuleStatuses = ["ACTIVE", "ARCHIVED"] as const;
+export type CustomizationRuleStatus = (typeof customizationRuleStatuses)[number];
+
 export interface JwtClaims {
   sub: string;
   tenantId: string | null;
