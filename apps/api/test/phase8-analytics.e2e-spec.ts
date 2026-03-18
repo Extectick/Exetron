@@ -126,6 +126,12 @@ describe("PHASE 8 analytics and owner cabinet", () => {
       .expect(201);
     const kioskDevice = kioskDeviceResponse.body as { id: string };
 
+    const kioskAccessResponse = await request(httpServer)
+      .post(`/devices/${kioskDevice.id}/kiosk-access-token`)
+      .set("Authorization", `Bearer ${adminTokens.accessToken}`)
+      .expect(201);
+    const kioskAccess = kioskAccessResponse.body as { accessToken: string };
+
     await request(httpServer)
       .put("/settings/store")
       .set("Authorization", `Bearer ${adminTokens.accessToken}`)
@@ -325,6 +331,7 @@ describe("PHASE 8 analytics and owner cabinet", () => {
       .post("/kiosk/checkout")
       .send({
         deviceId: kioskDevice.id,
+        accessToken: kioskAccess.accessToken,
         paymentMethod: "CARD",
         items: [{ productId: burger.id, quantity: 1 }]
       })

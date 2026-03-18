@@ -131,6 +131,18 @@ describe("PHASE 7 payments abstraction", () => {
       .expect(201);
     const kioskDeviceB = kioskDeviceBResponse.body as { id: string };
 
+    const kioskAccessAResponse = await request(httpServer)
+      .post(`/devices/${kioskDeviceA.id}/kiosk-access-token`)
+      .set("Authorization", `Bearer ${adminTokens.accessToken}`)
+      .expect(201);
+    const kioskAccessA = kioskAccessAResponse.body as { accessToken: string };
+
+    const kioskAccessBResponse = await request(httpServer)
+      .post(`/devices/${kioskDeviceB.id}/kiosk-access-token`)
+      .set("Authorization", `Bearer ${adminTokens.accessToken}`)
+      .expect(201);
+    const kioskAccessB = kioskAccessBResponse.body as { accessToken: string };
+
     await request(httpServer)
       .put("/settings/store")
       .set("Authorization", `Bearer ${adminTokens.accessToken}`)
@@ -372,6 +384,7 @@ describe("PHASE 7 payments abstraction", () => {
       .post("/kiosk/checkout")
       .send({
         deviceId: kioskDeviceA.id,
+        accessToken: kioskAccessA.accessToken,
         customerName: "Kiosk Success Guest",
         paymentMethod: "CARD",
         items: [{ productId: product.id, quantity: 1 }]
@@ -397,6 +410,7 @@ describe("PHASE 7 payments abstraction", () => {
       .post("/kiosk/checkout")
       .send({
         deviceId: kioskDeviceB.id,
+        accessToken: kioskAccessB.accessToken,
         customerName: "Kiosk Failed Guest",
         paymentMethod: "QR",
         items: [{ productId: product.id, quantity: 1 }]

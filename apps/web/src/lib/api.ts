@@ -7,6 +7,7 @@ import type {
   CustomizationRuleDto,
   FeatureFlagDto,
   KitchenBoardEntryDto,
+  KioskAccessTokenDto,
   KioskBootstrapResponse,
   KioskCheckoutResponse,
   KitchenTicketDto,
@@ -399,6 +400,7 @@ export function createPaymentProviderConfig(
     allowedChannels?: Array<"ADMIN" | "POS" | "KIOSK" | "DELIVERY">;
     autoConfirmOrderOnSuccess?: boolean;
     settings?: Record<string, unknown> | null;
+    secrets?: Record<string, string> | null;
   }
 ): Promise<PaymentProviderConfigDto> {
   return request<PaymentProviderConfigDto>(
@@ -424,6 +426,7 @@ export function patchPaymentProviderConfig(
     allowedChannels?: Array<"ADMIN" | "POS" | "KIOSK" | "DELIVERY">;
     autoConfirmOrderOnSuccess?: boolean;
     settings?: Record<string, unknown> | null;
+    secrets?: Record<string, string> | null;
   }
 ): Promise<PaymentProviderConfigDto> {
   return request<PaymentProviderConfigDto>(
@@ -492,6 +495,7 @@ export function getOwnerCabinetDashboard(
     storeId?: string;
     periodStart?: string;
     periodEnd?: string;
+    mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
   }
 ): Promise<OwnerCabinetDashboardDto> {
   return request<OwnerCabinetDashboardDto>(
@@ -536,14 +540,45 @@ export function createAnalyticsSnapshot(
   );
 }
 
-export function getKioskBootstrap(deviceId: string): Promise<KioskBootstrapResponse> {
+export function createAnalyticsPrecomputeRun(
+  accessToken: string,
+  payload: {
+    tenantId?: string;
+    storeId?: string | null;
+    periodStart?: string;
+    periodEnd?: string;
+    kind?: "OWNER_DASHBOARD";
+  }
+): Promise<{
+  kind: "OWNER_DASHBOARD";
+  executionMode: "INLINE";
+  status: "COMPLETED";
+  generatedAt: string;
+  artifactKey: string;
+  snapshot: AnalyticsSnapshotDto;
+}> {
+  return request(
+    "/analytics/precompute",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function getKioskBootstrap(
+  deviceId: string,
+  accessToken: string
+): Promise<KioskBootstrapResponse> {
   return request<KioskBootstrapResponse>(
-    withSearchParams("/kiosk/bootstrap", { deviceId })
+    withSearchParams("/kiosk/bootstrap", { deviceId, accessToken })
   );
 }
 
 export function kioskCheckout(payload: {
   deviceId: string;
+  accessToken: string;
   customerName?: string | null;
   note?: string | null;
   paymentMethod: "CASH" | "CARD" | "QR";
@@ -559,4 +594,17 @@ export function kioskCheckout(payload: {
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export function issueKioskAccessToken(
+  accessToken: string,
+  deviceId: string
+): Promise<KioskAccessTokenDto> {
+  return request<KioskAccessTokenDto>(
+    `/devices/${deviceId}/kiosk-access-token`,
+    {
+      method: "POST"
+    },
+    accessToken
+  );
 }

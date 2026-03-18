@@ -3,6 +3,9 @@
 ## Current Controls
 
 - JWT access/refresh flow
+- signed kiosk access tokens for public kiosk bootstrap and checkout
+- encrypted payment provider secret envelope with redacted API responses
+- explicit observability status surface for internal-vs-external exporter boundary
 - tenant isolation in service layer
 - PostgreSQL RLS on tenant-scoped tables
 - audit log and outbox persistence for critical operations
@@ -22,14 +25,16 @@
 
 ## Remaining Risks
 
-- kiosk public bootstrap still depends on `deviceId` rather than signed public token
+- kiosk access tokens are still long-lived signed URLs without dedicated rotation UI or rate limiting
 - simulated payment providers remain in place; no acquiring/webhook verification path exists yet
+- payment provider secrets currently derive application-level encryption from the API secret set; managed secret storage is still a future step
 - feature flags and customization rules use JSON payloads without versioned approval workflow
-- owner analytics still read directly from operational tables
+- owner analytics can now read from precomputed snapshots, but precompute execution still runs inline inside the API process
 
 ## Next Security Steps
 
-- add signed kiosk bootstrap tokens or device public session keys
-- move secrets to managed secret storage
+- move provider and platform secrets to managed secret storage
+- add kiosk token rotation UX and token issuance monitoring
 - add rate limiting and auth anomaly monitoring
+- move observability export from boundary/status-only mode to real external collector wiring in multi-instance environments
 - add dedicated non-superuser RLS policy regression tests

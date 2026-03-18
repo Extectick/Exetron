@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Inject,
   Injectable,
   Module,
   Param,
@@ -9,6 +11,7 @@ import {
   Post,
   Query
 } from "@nestjs/common";
+import { JwtModule, JwtService } from "@nestjs/jwt";
 import {
   ApiProperty,
   ApiPropertyOptional,
@@ -17,11 +20,12 @@ import {
 import type {
   CreateDeviceRequest,
   DeviceDto,
+  KioskAccessTokenDto,
   ListResponse,
   UpdateDeviceRequest
 } from "@exetron/contracts";
+import type { ApiEnv } from "@exetron/config";
 import type { RequestContext } from "@exetron/types";
-import crypto from "node:crypto";
 import {
   IsIn,
   IsOptional,
@@ -37,6 +41,14 @@ import { IdParamDto } from "../common/dto/id-param.dto";
 import { DatabaseContextService } from "../database/database-context.service";
 import { DomainEventsModule } from "../domain-events/domain-events.module";
 import { DomainEventsService } from "../domain-events/domain-events.service";
+import { APP_ENV } from "../common/app-env.provider";
+import { createDeviceBootstrapSecret } from "./device-bootstrap-secret.util";
+import {
+  KIOSK_ACCESS_TOKEN_TTL,
+  KIOSK_ACCESS_TOKEN_TTL_MS,
+  resolveKioskAccessTokenSecret,
+  type KioskAccessTokenClaims
+} from "../kiosk/kiosk-access-token.util";
 
 class DevicesQueryDto {
   @ApiPropertyOptional({ format: "uuid" })
@@ -96,9 +108,17 @@ class UpdateDeviceDto implements UpdateDeviceRequest {
   status?: "PENDING" | "ACTIVE" | "SUSPENDED" | "RETIRED";
 }
 
+class KioskAccessTokenParamsDto {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  id!: string;
+}
+
 @Injectable()
 class DevicesService {
   constructor(
+    @Inject(APP_ENV) private readonly env: ApiEnv,
+    private readonly jwtService: JwtService,
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService,
     private readonly audit: AuditService,
@@ -145,11 +165,7 @@ class DevicesService {
       const store = await tx.store.findUniqueOrThrow({ where: { id: dto.storeId } });
       this.accessControl.resolveTenantId(context, store.tenantId);
 
-      const bootstrapSecret = crypto.randomBytes(24).toString("hex");
-      const apiKeyHash = crypto
-        .createHash("sha256")
-        .update(bootstrapSecret)
-        .digest("hex");
+      const { bootstrapSecret, apiKeyHash } = createDeviceBootstrapSecret();
 
       const device = await tx.device.create({
         data: {
@@ -243,6 +259,75 @@ class DevicesService {
       };
     });
   }
+
+  issueKioskAccessToken(
+    context: RequestContext,
+    deviceId: string
+  ): Promise<KioskAccessTokenDto> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      const device = await tx.device.findUniqueOrThrow({
+        where: { id: deviceId }
+      });
+      this.accessControl.resolveTenantId(context, device.tenantId);
+      this.accessControl.enforceStoreAccess(context, device.storeId);
+
+      if (device.type !== "KIOSK") {
+        throw new BadRequestException("Kiosk access tokens can only be issued for kiosk devices.");
+      }
+
+      if (device.status !== "ACTIVE") {
+        throw new BadRequestException("Kiosk access tokens can only be issued for active devices.");
+      }
+
+      const claims: KioskAccessTokenClaims = {
+        sub: device.id,
+        tenantId: device.tenantId,
+        storeId: device.storeId,
+        code: device.code,
+        type: "KIOSK",
+        scope: "kiosk_public"
+      };
+      const accessToken = await this.jwtService.signAsync(claims, {
+        secret: resolveKioskAccessTokenSecret(this.env.JWT_ACCESS_SECRET),
+        expiresIn: KIOSK_ACCESS_TOKEN_TTL
+      });
+      const expiresAt = new Date(Date.now() + KIOSK_ACCESS_TOKEN_TTL_MS).toISOString();
+
+      await this.audit.recordTx(tx, {
+        tenantId: device.tenantId,
+        storeId: device.storeId,
+        actorType: "USER",
+        actorId: context.userId,
+        action: "device.kiosk_access_token_issued",
+        entityType: "device",
+        entityId: device.id,
+        payload: {
+          code: device.code,
+          type: device.type,
+          expiresAt
+        }
+      });
+
+      await this.domainEvents.record(tx, {
+        tenantId: device.tenantId,
+        eventName: "device.kiosk_access_token_issued",
+        aggregate: "device",
+        aggregateId: device.id,
+        payload: {
+          code: device.code,
+          type: device.type,
+          expiresAt
+        }
+      });
+
+      return {
+        deviceId: device.id,
+        accessToken,
+        expiresAt,
+        kioskPath: `/kiosk/${device.id}?token=${encodeURIComponent(accessToken)}`
+      };
+    });
+  }
 }
 
 @ApiTags("devices")
@@ -277,10 +362,19 @@ class DevicesController {
   ): Promise<DeviceDto> {
     return this.devicesService.update(context, params.id, dto);
   }
+
+  @Post(":id/kiosk-access-token")
+  @Permissions("devices.write")
+  issueKioskAccessToken(
+    @CurrentContext() context: RequestContext,
+    @Param() params: KioskAccessTokenParamsDto
+  ): Promise<KioskAccessTokenDto> {
+    return this.devicesService.issueKioskAccessToken(context, params.id);
+  }
 }
 
 @Module({
-  imports: [AuditModule, DomainEventsModule],
+  imports: [AuditModule, DomainEventsModule, JwtModule.register({})],
   controllers: [DevicesController],
   providers: [DevicesService]
 })

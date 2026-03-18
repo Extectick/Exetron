@@ -91,6 +91,14 @@ describe("PHASE 9 customization layer", () => {
       .expect(201);
     const device = deviceResponse.body as { id: string; code?: string };
 
+    const kioskAccessResponse = await request(httpServer)
+      .post(`/devices/${device.id}/kiosk-access-token`)
+      .set("Authorization", `Bearer ${adminTokens.accessToken}`)
+      .expect(201);
+    const kioskAccess = kioskAccessResponse.body as {
+      accessToken: string;
+    };
+
     const currentWeekday = new Date().getUTCDay();
 
     await request(httpServer)
@@ -204,7 +212,7 @@ describe("PHASE 9 customization layer", () => {
 
     const bootstrapResponse = await request(httpServer)
       .get("/kiosk/bootstrap")
-      .query({ deviceId: device.id })
+      .query({ deviceId: device.id, accessToken: kioskAccess.accessToken })
       .expect(200);
     const bootstrap = bootstrapResponse.body as {
       branding: { heroTitle: string; heroSubtitle: string; accentColor: string };
@@ -244,6 +252,7 @@ describe("PHASE 9 customization layer", () => {
       .post("/kiosk/checkout")
       .send({
         deviceId: device.id,
+        accessToken: kioskAccess.accessToken,
         paymentMethod: "CASH",
         items: [
           {
@@ -258,6 +267,7 @@ describe("PHASE 9 customization layer", () => {
       .post("/kiosk/checkout")
       .send({
         deviceId: device.id,
+        accessToken: kioskAccess.accessToken,
         customerName: "Custom Guest",
         paymentMethod: "CASH",
         items: [

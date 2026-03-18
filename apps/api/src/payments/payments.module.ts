@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Injectable,
   Module,
   Param,
@@ -25,6 +26,7 @@ import type {
   RecordPaymentIntentRequest,
   UpdatePaymentProviderConfigRequest
 } from "@exetron/contracts";
+import type { ApiEnv } from "@exetron/config";
 import { Prisma } from "@exetron/database";
 import type {
   OrderChannel,
@@ -50,6 +52,7 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { AuditModule, AuditService } from "../audit/audit.module";
+import { APP_ENV } from "../common/app-env.provider";
 import { AccessControlService } from "../common/access-control.service";
 import { decimalToString } from "../common/catalog-helpers";
 import { CurrentContext } from "../common/decorators/current-context.decorator";
@@ -67,6 +70,10 @@ import {
   type PaymentAllocationInput,
   validatePaymentAllocations
 } from "./payment-runtime.util";
+import {
+  buildProviderConfigSettings,
+  resolveProviderConfigSettings
+} from "./provider-config-secrets.util";
 
 const allOrderChannels: OrderChannel[] = ["ADMIN", "POS", "KIOSK", "DELIVERY"];
 
@@ -174,6 +181,11 @@ class CreatePaymentProviderConfigDto implements CreatePaymentProviderConfigReque
   @IsOptional()
   @IsObject()
   settings?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsObject()
+  secrets?: Record<string, string> | null;
 }
 
 class UpdatePaymentProviderConfigDto implements UpdatePaymentProviderConfigRequest {
@@ -225,6 +237,11 @@ class UpdatePaymentProviderConfigDto implements UpdatePaymentProviderConfigReque
   @IsOptional()
   @IsObject()
   settings?: Record<string, unknown> | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsObject()
+  secrets?: Record<string, string> | null;
 }
 
 class CreatePaymentIntentDto implements CreatePaymentIntentRequest {
@@ -308,6 +325,8 @@ type LegacyProviderConfig = {
   allowedChannels: OrderChannel[];
   autoConfirmOrderOnSuccess: boolean;
   settings: Record<string, unknown> | null;
+  secrets: PaymentProviderConfigDto["secrets"];
+  resolvedSecrets?: Record<string, string> | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -427,6 +446,7 @@ function mapProviderConfig(config: LegacyProviderConfig): PaymentProviderConfigD
     allowedChannels: config.allowedChannels,
     autoConfirmOrderOnSuccess: config.autoConfirmOrderOnSuccess,
     settings: config.settings,
+    secrets: config.secrets,
     createdAt: config.createdAt.toISOString(),
     updatedAt: config.updatedAt.toISOString()
   };
@@ -435,6 +455,7 @@ function mapProviderConfig(config: LegacyProviderConfig): PaymentProviderConfigD
 @Injectable()
 export class PaymentsService {
   constructor(
+    @Inject(APP_ENV) private readonly env: ApiEnv,
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService,
     private readonly audit: AuditService,
@@ -466,15 +487,7 @@ export class PaymentsService {
       });
 
       return {
-        items: configs.map((config) =>
-          mapProviderConfig({
-            ...config,
-            settings:
-              config.settings && typeof config.settings === "object"
-                ? (config.settings as Record<string, unknown>)
-                : null
-          })
-        ),
+        items: configs.map((config) => this.mapPersistedProviderConfig(config)),
         total: configs.length
       };
     });
@@ -492,6 +505,12 @@ export class PaymentsService {
       }
 
       await this.ensureProviderKeyIsUnique(tx, tenantId, dto.storeId ?? null, dto.providerKey);
+      const persistedSettings = buildProviderConfigSettings({
+        currentSettings: null,
+        nextSettings: dto.settings,
+        nextSecrets: dto.secrets ?? undefined,
+        encryptionSecret: this.env.JWT_ACCESS_SECRET
+      });
 
       const config = await tx.paymentProviderConfig.create({
         data: {
@@ -504,8 +523,8 @@ export class PaymentsService {
           priority: dto.priority ?? 100,
           allowedChannels: dto.allowedChannels ?? allOrderChannels,
           autoConfirmOrderOnSuccess: dto.autoConfirmOrderOnSuccess ?? false,
-          settings: dto.settings
-            ? (dto.settings as Prisma.InputJsonObject)
+          settings: persistedSettings
+            ? (persistedSettings as Prisma.InputJsonObject)
             : Prisma.JsonNull
         }
       });
@@ -537,13 +556,7 @@ export class PaymentsService {
         }
       });
 
-      return mapProviderConfig({
-        ...config,
-        settings:
-          config.settings && typeof config.settings === "object"
-            ? (config.settings as Record<string, unknown>)
-            : null
-      });
+      return this.mapPersistedProviderConfig(config);
     });
   }
 
@@ -577,6 +590,18 @@ export class PaymentsService {
           current.id
         );
       }
+      const persistedSettings =
+        dto.settings !== undefined || dto.secrets !== undefined
+          ? buildProviderConfigSettings({
+              currentSettings:
+                current.settings && typeof current.settings === "object"
+                  ? (current.settings as Record<string, unknown>)
+                  : null,
+              nextSettings: dto.settings,
+              nextSecrets: dto.secrets,
+              encryptionSecret: this.env.JWT_ACCESS_SECRET
+            })
+          : undefined;
 
       const updated = await tx.paymentProviderConfig.update({
         where: { id: current.id },
@@ -591,10 +616,10 @@ export class PaymentsService {
           ...(dto.autoConfirmOrderOnSuccess !== undefined
             ? { autoConfirmOrderOnSuccess: dto.autoConfirmOrderOnSuccess }
             : {}),
-          ...(dto.settings !== undefined
+          ...(dto.settings !== undefined || dto.secrets !== undefined
             ? {
-                settings: dto.settings
-                  ? (dto.settings as Prisma.InputJsonObject)
+                settings: persistedSettings
+                  ? (persistedSettings as Prisma.InputJsonObject)
                   : Prisma.JsonNull
               }
             : {})
@@ -623,13 +648,7 @@ export class PaymentsService {
         }
       });
 
-      return mapProviderConfig({
-        ...updated,
-        settings:
-          updated.settings && typeof updated.settings === "object"
-            ? (updated.settings as Record<string, unknown>)
-            : null
-      });
+      return this.mapPersistedProviderConfig(updated);
     });
   }
 
@@ -1280,12 +1299,17 @@ export class PaymentsService {
 
     const selected = matchingConfigs[0];
     if (selected) {
+      const resolved = resolveProviderConfigSettings(
+        selected.settings && typeof selected.settings === "object"
+          ? (selected.settings as Record<string, unknown>)
+          : null,
+        this.env.JWT_ACCESS_SECRET
+      );
       return {
         ...selected,
-        settings:
-          selected.settings && typeof selected.settings === "object"
-            ? (selected.settings as Record<string, unknown>)
-            : null
+        settings: resolved.publicSettings,
+        secrets: resolved.secrets,
+        resolvedSecrets: resolved.resolvedSecrets
       };
     }
 
@@ -1305,6 +1329,8 @@ export class PaymentsService {
       allowedChannels: [intent.channel],
       autoConfirmOrderOnSuccess: resolveDefaultAutoConfirm(intent.channel),
       settings: null,
+      secrets: null,
+      resolvedSecrets: null,
       createdAt: new Date(0),
       updatedAt: new Date(0)
     };
@@ -1316,6 +1342,21 @@ export class PaymentsService {
 
   private resolveActorId(context: RequestContext): string {
     return context.scope === "device" && context.deviceId ? context.deviceId : context.userId;
+  }
+
+  private mapPersistedProviderConfig(config: Prisma.PaymentProviderConfigGetPayload<{}>) {
+    const resolved = resolveProviderConfigSettings(
+      config.settings && typeof config.settings === "object"
+        ? (config.settings as Record<string, unknown>)
+        : null,
+      this.env.JWT_ACCESS_SECRET
+    );
+
+    return mapProviderConfig({
+      ...config,
+      settings: resolved.publicSettings,
+      secrets: resolved.secrets
+    });
   }
 }
 

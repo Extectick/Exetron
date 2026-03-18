@@ -1,4 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
+import type { ObservabilityStatusDto } from "@exetron/contracts";
+import type { ApiEnv } from "@exetron/config";
+import { APP_ENV } from "../common/app-env.provider";
 
 interface RequestMetricKey {
   method: string;
@@ -38,6 +41,8 @@ export class ObservabilityService {
   private readonly requestMetrics = new Map<string, RequestMetricValue>();
   private readonly exceptionCounts = new Map<string, number>();
 
+  constructor(@Inject(APP_ENV) private readonly env: ApiEnv) {}
+
   recordHttpRequest(input: RequestMetricKey & { durationMs: number }): void {
     const key = labelKey({
       method: input.method,
@@ -68,7 +73,37 @@ export class ObservabilityService {
     return Math.floor((Date.now() - this.startedAt) / 1000);
   }
 
+  getObservabilityStatus(): ObservabilityStatusDto {
+    const exporterMode = this.env.OBSERVABILITY_EXPORTER_MODE;
+    const endpoint = this.env.OBSERVABILITY_OTLP_ENDPOINT ?? null;
+    const externalExportEnabled = exporterMode !== "internal" && endpoint !== null;
+    const alertsEnabled = Boolean(this.env.OBSERVABILITY_ALERT_WEBHOOK_URL);
+
+    return {
+      service: "exetron-api",
+      serviceName: this.env.OBSERVABILITY_SERVICE_NAME,
+      generatedAt: new Date().toISOString(),
+      exporterMode,
+      metrics: {
+        internalPrometheusEndpoint: "/health/metrics",
+        externalExportEnabled,
+        endpoint
+      },
+      tracing: {
+        enabled: externalExportEnabled,
+        transport: externalExportEnabled ? "otlp_http" : "none",
+        endpoint
+      },
+      alerts: {
+        enabled: alertsEnabled,
+        channel: alertsEnabled ? "webhook" : "none",
+        targetPresent: alertsEnabled
+      }
+    };
+  }
+
   renderPrometheusMetrics(): string {
+    const observabilityStatus = this.getObservabilityStatus();
     const lines = [
       "# HELP exetron_process_uptime_seconds Process uptime in seconds.",
       "# TYPE exetron_process_uptime_seconds gauge",
@@ -83,7 +118,9 @@ export class ObservabilityService {
       "# HELP exetron_http_request_duration_ms_count Count of HTTP requests included in the duration summary.",
       "# TYPE exetron_http_request_duration_ms_count counter",
       "# HELP exetron_http_request_duration_ms_max Max HTTP request duration in milliseconds.",
-      "# TYPE exetron_http_request_duration_ms_max gauge"
+      "# TYPE exetron_http_request_duration_ms_max gauge",
+      "# HELP exetron_observability_exporter_enabled Whether an external exporter path is configured for the signal.",
+      "# TYPE exetron_observability_exporter_enabled gauge"
     ];
 
     for (const [key, value] of this.requestMetrics.entries()) {
@@ -115,6 +152,22 @@ export class ObservabilityService {
       )}"}`;
       lines.push(`exetron_http_exceptions_total${labelText} ${value}`);
     }
+
+    lines.push(
+      `exetron_observability_exporter_enabled{signal="metrics",mode="${escapeLabel(
+        observabilityStatus.exporterMode
+      )}"} ${observabilityStatus.metrics.externalExportEnabled ? 1 : 0}`
+    );
+    lines.push(
+      `exetron_observability_exporter_enabled{signal="traces",mode="${escapeLabel(
+        observabilityStatus.exporterMode
+      )}"} ${observabilityStatus.tracing.enabled ? 1 : 0}`
+    );
+    lines.push(
+      `exetron_observability_exporter_enabled{signal="alerts",mode="${escapeLabel(
+        observabilityStatus.exporterMode
+      )}"} ${observabilityStatus.alerts.enabled ? 1 : 0}`
+    );
 
     return `${lines.join("\n")}\n`;
   }

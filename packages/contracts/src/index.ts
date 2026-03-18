@@ -129,6 +129,25 @@ export interface DeviceDto {
   updatedAt: string;
 }
 
+export interface KioskAccessTokenDto {
+  deviceId: string;
+  accessToken: string;
+  expiresAt: string;
+  kioskPath: string;
+}
+
+export interface OnboardingBootstrapDeviceDto {
+  device: DeviceDto;
+  bootstrapSecret: string;
+  kioskAccessToken: KioskAccessTokenDto | null;
+}
+
+export interface OnboardingBootstrapResponse {
+  tenant: TenantDto;
+  store: StoreDto;
+  devices: OnboardingBootstrapDeviceDto[];
+}
+
 export interface AuditLogDto {
   id: string;
   tenantId: string | null;
@@ -624,8 +643,15 @@ export interface PaymentProviderConfigDto {
   allowedChannels: OrderChannel[];
   autoConfirmOrderOnSuccess: boolean;
   settings: Record<string, unknown> | null;
+  secrets: PaymentProviderConfigSecretsStateDto | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaymentProviderConfigSecretsStateDto {
+  hasSecrets: boolean;
+  keys: string[];
+  updatedAt: string | null;
 }
 
 export interface PaymentIntentListItemDto {
@@ -868,6 +894,17 @@ export interface UpdateDeviceRequest {
   name?: string;
   type?: DeviceKind;
   status?: "PENDING" | "ACTIVE" | "SUSPENDED" | "RETIRED";
+}
+
+export interface OnboardingBootstrapRequest {
+  tenant: CreateTenantRequest;
+  store: Pick<CreateStoreRequest, "code" | "name" | "timezone">;
+  devices?: Array<{
+    code: string;
+    name: string;
+    type: DeviceKind;
+    issueKioskAccessToken?: boolean;
+  }>;
 }
 
 export interface UpsertTenantSettingRequest {
@@ -1202,6 +1239,7 @@ export interface CreatePaymentProviderConfigRequest {
   allowedChannels?: OrderChannel[];
   autoConfirmOrderOnSuccess?: boolean;
   settings?: Record<string, unknown> | null;
+  secrets?: Record<string, string> | null;
 }
 
 export interface UpdatePaymentProviderConfigRequest {
@@ -1214,6 +1252,7 @@ export interface UpdatePaymentProviderConfigRequest {
   allowedChannels?: OrderChannel[];
   autoConfirmOrderOnSuccess?: boolean;
   settings?: Record<string, unknown> | null;
+  secrets?: Record<string, string> | null;
 }
 
 export interface TransitionKitchenTicketRequest {
@@ -1231,6 +1270,7 @@ export interface KioskCheckoutItemInput {
 
 export interface KioskCheckoutRequest {
   deviceId: string;
+  accessToken: string;
   customerName?: string | null;
   note?: string | null;
   paymentMethod: PaymentMethodKind;
@@ -1284,6 +1324,8 @@ export interface OwnerCabinetDashboardDto {
   periodStart: string;
   periodEnd: string;
   generatedAt: string;
+  dataSource: "LIVE" | "SNAPSHOT";
+  snapshotId: string | null;
   currency: string;
   totalOrders: number;
   paidOrders: number;
@@ -1300,6 +1342,8 @@ export interface AnalyticsSnapshotDto {
   tenantId: string;
   storeId: string | null;
   kind: AnalyticsSnapshotKind;
+  artifactKey: string;
+  artifactStatus: "READY";
   periodStart: string;
   periodEnd: string;
   payload: Record<string, unknown>;
@@ -1312,4 +1356,39 @@ export interface CreateAnalyticsSnapshotRequest {
   storeId?: string | null;
   periodStart?: string;
   periodEnd?: string;
+}
+
+export interface CreateAnalyticsPrecomputeRequest extends CreateAnalyticsSnapshotRequest {
+  kind?: AnalyticsSnapshotKind;
+}
+
+export interface AnalyticsPrecomputeRunDto {
+  kind: AnalyticsSnapshotKind;
+  executionMode: "INLINE";
+  status: "COMPLETED";
+  generatedAt: string;
+  artifactKey: string;
+  snapshot: AnalyticsSnapshotDto;
+}
+
+export interface ObservabilityStatusDto {
+  service: string;
+  serviceName: string;
+  generatedAt: string;
+  exporterMode: "internal" | "otlp_http";
+  metrics: {
+    internalPrometheusEndpoint: string;
+    externalExportEnabled: boolean;
+    endpoint: string | null;
+  };
+  tracing: {
+    enabled: boolean;
+    transport: "none" | "otlp_http";
+    endpoint: string | null;
+  };
+  alerts: {
+    enabled: boolean;
+    channel: "none" | "webhook";
+    targetPresent: boolean;
+  };
 }

@@ -27,6 +27,7 @@ Current implemented scope includes:
 - PHASE 8 analytics: owner cabinet dashboard, revenue summaries, store comparison, top products, and report snapshots
 - PHASE 9 customization: branding configs, customization rules, effective evaluation, and channel/point-specific behavior
 - PHASE 10 hardening: structured logs, request ids, readiness/metrics endpoints, CI/CD gates, and production ops docs
+- PHASE 11 product maturity: signed kiosk access tokens, platform-admin onboarding bootstrap, encrypted provider-config secrets handling, observability boundary, and analytics precompute basics
 
 ## Quick Start
 
@@ -55,16 +56,30 @@ typecheck, test and build all pass through PHASE 10.
 The root dev launcher automatically selects the next free port when `3000`,
 `3001`, or `8081` are already busy and prints the final port map on startup.
 
-For kiosk runtime, register an active `KIOSK` device and open
-`http://localhost:3000/kiosk/<deviceId>`.
+For kiosk runtime, register an active `KIOSK` device, issue a kiosk access token via
+`POST /devices/:id/kiosk-access-token`, and open
+`http://localhost:3000/kiosk/<deviceId>?token=<kioskAccessToken>`.
+
+For fresh environment bootstrap, platform admins can create a tenant, its first
+store, and initial devices in one request via `POST /onboarding/bootstrap`.
+That flow returns one-time device bootstrap secrets and can optionally issue the
+first kiosk public access token for new kiosk devices.
 
 For payment administration, use:
 - `/payment-provider-configs`
 - `/payments`
 - `/payment-reconciliation`
 
+Payment provider configs now separate public `settings` from sensitive
+`secrets`: secrets can be submitted through the API, are stored in encrypted
+persistence, and are returned only as redacted metadata.
+
 For owner analytics, use:
 - `/owner-cabinet`
+
+Owner analytics now support live vs precomputed reads. Use `POST /analytics/precompute`
+to generate an owner-cabinet artifact and `GET /analytics/owner-cabinet?mode=...`
+to choose `LIVE`, `PREFER_SNAPSHOT`, or `SNAPSHOT_ONLY`.
 
 For customization management, use:
 - `/customization`
@@ -74,6 +89,7 @@ For production hardening and probes, use:
 - `/health/live`
 - `/health/readiness`
 - `/health/metrics`
+- `/health/observability`
 
 Operational docs:
 - `docs/operations/production-readiness.md`

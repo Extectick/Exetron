@@ -3,11 +3,14 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Injectable,
   Module,
   Post,
-  Query
+  Query,
+  UnauthorizedException
 } from "@nestjs/common";
+import { JwtModule, JwtService } from "@nestjs/jwt";
 import { ApiProperty, ApiPropertyOptional, ApiTags } from "@nestjs/swagger";
 import type {
   KioskBootstrapResponse,
@@ -15,6 +18,7 @@ import type {
   KioskCheckoutResponse,
   KioskPaymentHandoffDto
 } from "@exetron/contracts";
+import type { ApiEnv } from "@exetron/config";
 import type { Device } from "@exetron/database";
 import type { PaymentMethodKind, RequestContext } from "@exetron/types";
 import {
@@ -30,6 +34,7 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { Public } from "../common/decorators/public.decorator";
+import { APP_ENV } from "../common/app-env.provider";
 import { CustomizationModule, CustomizationService } from "../customization/customization.module";
 import { DatabaseContextService } from "../database/database-context.service";
 import { PrismaService } from "../database/prisma.service";
@@ -37,11 +42,20 @@ import { OrdersModule, OrdersService } from "../orders/orders.module";
 import { PaymentsModule, PaymentsService } from "../payments/payments.module";
 import { PricingModule, PricingService } from "../pricing/pricing.module";
 import { resolveKioskBranding, resolveKioskRules } from "./kiosk-config.util";
+import {
+  resolveKioskAccessTokenSecret,
+  type KioskAccessTokenClaims
+} from "./kiosk-access-token.util";
 
 class KioskBootstrapQueryDto {
   @ApiProperty({ format: "uuid" })
   @IsUUID()
   deviceId!: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  accessToken!: string;
 }
 
 class KioskCheckoutItemDto {
@@ -77,6 +91,11 @@ class KioskCheckoutDto implements KioskCheckoutRequest {
   @ApiProperty({ format: "uuid" })
   @IsUUID()
   deviceId!: string;
+
+  @ApiProperty()
+  @IsOptional()
+  @IsString()
+  accessToken!: string;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
@@ -145,6 +164,8 @@ function mapKioskPaymentHandoff(handoff: {
 @Injectable()
 class KioskService {
   constructor(
+    @Inject(APP_ENV) private readonly env: ApiEnv,
+    private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
     private readonly dbContext: DatabaseContextService,
     private readonly customizationService: CustomizationService,
@@ -153,8 +174,8 @@ class KioskService {
     private readonly paymentsService: PaymentsService
   ) {}
 
-  async bootstrap(deviceId: string): Promise<KioskBootstrapResponse> {
-    const device = await this.loadKioskDevice(deviceId);
+  async bootstrap(deviceId: string, accessToken: string): Promise<KioskBootstrapResponse> {
+    const device = await this.loadAuthorizedKioskDevice(deviceId, accessToken);
     const context = buildDeviceContext(device);
     const [store, customization] = await Promise.all([
       this.dbContext.withRequestContext(context, (tx) =>
@@ -194,7 +215,7 @@ class KioskService {
       throw new BadRequestException("Kiosk checkout requires at least one item.");
     }
 
-    const device = await this.loadKioskDevice(dto.deviceId);
+    const device = await this.loadAuthorizedKioskDevice(dto.deviceId, dto.accessToken);
     const context = buildDeviceContext(device);
     const customization = await this.customizationService.resolveEffectiveCustomization(
       context,
@@ -327,6 +348,49 @@ class KioskService {
 
     return device;
   }
+
+  private async loadAuthorizedKioskDevice(
+    deviceId: string,
+    accessToken: string
+  ): Promise<Device> {
+    const claims = await this.verifyAccessToken(deviceId, accessToken);
+    const device = await this.loadKioskDevice(deviceId);
+
+    if (
+      claims.tenantId !== device.tenantId ||
+      claims.storeId !== device.storeId ||
+      claims.code !== device.code ||
+      claims.type !== device.type
+    ) {
+      throw new UnauthorizedException("Kiosk access token is no longer valid for this device.");
+    }
+
+    return device;
+  }
+
+  private async verifyAccessToken(
+    deviceId: string,
+    accessToken: string
+  ): Promise<KioskAccessTokenClaims> {
+    if (!accessToken?.trim()) {
+      throw new UnauthorizedException("Kiosk access token is required.");
+    }
+
+    let claims: KioskAccessTokenClaims;
+    try {
+      claims = await this.jwtService.verifyAsync<KioskAccessTokenClaims>(accessToken, {
+        secret: resolveKioskAccessTokenSecret(this.env.JWT_ACCESS_SECRET)
+      });
+    } catch {
+      throw new UnauthorizedException("Kiosk access token is invalid or expired.");
+    }
+
+    if (claims.scope !== "kiosk_public" || claims.type !== "KIOSK" || claims.sub !== deviceId) {
+      throw new UnauthorizedException("Kiosk access token does not match this device.");
+    }
+
+    return claims;
+  }
 }
 
 @ApiTags("kiosk")
@@ -337,7 +401,7 @@ class KioskController {
   @Get("bootstrap")
   @Public()
   bootstrap(@Query() query: KioskBootstrapQueryDto): Promise<KioskBootstrapResponse> {
-    return this.kioskService.bootstrap(query.deviceId);
+    return this.kioskService.bootstrap(query.deviceId, query.accessToken);
   }
 
   @Post("checkout")
@@ -348,7 +412,7 @@ class KioskController {
 }
 
 @Module({
-  imports: [CustomizationModule, PricingModule, OrdersModule, PaymentsModule],
+  imports: [CustomizationModule, PricingModule, OrdersModule, PaymentsModule, JwtModule.register({})],
   controllers: [KioskController],
   providers: [KioskService]
 })

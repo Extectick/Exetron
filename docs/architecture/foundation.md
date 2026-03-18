@@ -23,7 +23,7 @@
 - `customization` - branding configs, customization rules and effective channel/point evaluation
 - `observability` - structured logs, request ids, metrics and standardized error handling
 - `kitchen` - kitchen tickets, board feed and realtime operational updates
-- `kiosk` - public kiosk bootstrap and self-service checkout on top of the payments runtime
+- `kiosk` - signed public kiosk bootstrap and self-service checkout on top of the payments runtime
 - `stores` - store topology and timezone
 - `users` - staff identities and memberships
 - `roles` - tenant RBAC and permission links
@@ -32,6 +32,7 @@
 - `feature-flags` - tenant/store feature toggles
 - `audit` - immutable activity log
 - `domain-events` - outbox-backed internal event publishing
+- `onboarding` - platform-admin bootstrap flow for initial tenant, store and device setup
 
 ## Data Model
 
@@ -112,6 +113,9 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
   - `GET /payments/reconciliation/summary`
 - `POST /pos/payment-intents` remains as a compatibility wrapper over the shared payments service.
 - Provider configs are tenant/store-scoped and use precedence `store > tenant`.
+- Provider config persistence now separates public `settings` from sensitive
+  `secrets`; secrets are stored in an encrypted envelope and returned to API
+  clients only as metadata (`hasSecrets`, keys, updatedAt).
 - Current provider types are `CASH_MANUAL`, `CARD_SIMULATED`, and `QR_SIMULATED`.
 - Intent lifecycle is `PENDING -> PARTIALLY_PAID -> COMPLETED | FAILED | CANCELLED`.
 - Allocation lifecycle is `PENDING -> COMPLETED | FAILED | CANCELLED`.
@@ -124,21 +128,42 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
   - `GET /analytics/owner-cabinet`
   - `GET /analytics/snapshots`
   - `POST /analytics/snapshots`
+- `POST /analytics/precompute` creates owner-cabinet precompute artifacts using
+  the same `AnalyticsSnapshot` storage contract and emits explicit precompute events.
 - PHASE 8 computes revenue from paid orders using completed payment intents, not from kitchen completion.
 - Store comparison, top products and channel summary are aggregated on demand from transactional tables.
 - `AnalyticsSnapshot` stores persisted owner dashboard payloads for a selected period and optional store scope.
-- Current analytics strategy is read-on-demand over operational data; no separate warehouse or materialized projection exists yet.
+- Owner-cabinet reads now support `LIVE`, `PREFER_SNAPSHOT`, and `SNAPSHOT_ONLY`
+  modes, so the same endpoint can switch between direct transactional reads and
+  precomputed snapshot artifacts.
+- PHASE 11 keeps precompute execution inline for now, but the artifact contract
+  and `analytics.precompute_requested/completed` events define the async worker
+  boundary for future iterations.
 
 ## Kiosk
 
-- Public kiosk bootstrap is exposed as `GET /kiosk/bootstrap?deviceId=...`.
+- Public kiosk bootstrap is exposed as
+  `GET /kiosk/bootstrap?deviceId=...&accessToken=...`.
 - Public kiosk checkout is exposed as `POST /kiosk/checkout`.
+- Protected kiosk token issuance is exposed as `POST /devices/:id/kiosk-access-token`.
 - Kiosk runtime resolves branding and rules from `kiosk.branding` and
   `kiosk.rules`, preferring store settings over tenant settings.
 - Paid kiosk checkout reuses the existing cart/order lifecycle with channel
   `KIOSK` and can auto-confirm the order into the kitchen flow.
+- Public kiosk bootstrap and checkout now require a signed kiosk access token
+  that is scoped to the active kiosk device, tenant, store and device code.
 - PHASE 7 kiosk checkout no longer writes new `KioskPaymentHandoff` rows and instead
   creates a generic payment intent plus a single processed allocation.
+
+## Onboarding
+
+- Initial tenant bootstrap is exposed as `POST /onboarding/bootstrap`.
+- The onboarding runtime is platform-admin only and creates the first
+  `tenant -> store -> device[]` chain in one transaction-scoped flow.
+- Device bootstrap secrets are returned only once at onboarding time and remain
+  hashed at rest through the existing `apiKeyHash` model.
+- Kiosk devices created during onboarding can immediately receive a signed
+  public access token without a second API roundtrip.
 
 ## Event Strategy
 
@@ -152,7 +177,7 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 - Orders are still submitted to the existing backend APIs; there is no local-first authoritative store yet.
 - PHASE 7 extends POS from payment intent capture to actual allocation processing, but still without real acquiring integration or refunds.
 - PHASE 6 kiosk runtime is web/PWA-first and stays online-first; it does not yet
-  add kiosk-specific offline queueing or device-token hardening.
+  add kiosk-specific offline queueing.
 - PHASE 9 adds a formal `customization` runtime on top of `settings` and
   `feature-flags`, with branding configs plus a simple deterministic rules executor.
 - Effective customization is exposed as `POST /customization/evaluate`, while
@@ -168,10 +193,13 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
   - `GET /health/live`
   - `GET /health/readiness`
   - `GET /health/metrics`
+  - `GET /health/observability`
 - Request ids are attached via middleware and returned as `x-request-id`.
 - Global exception handling returns standardized envelopes with `statusCode`,
   `timestamp`, `path`, `requestId`, `error`, and `message`.
 - Structured logs are emitted as JSON lines from the API runtime.
-- Current metrics are process-local and in-memory; they are sufficient for
-  single-instance hardening but should move to an external metrics/tracing stack
-  when the deployment becomes multi-instance.
+- Current metrics are process-local and in-memory, while `GET /health/observability`
+  exposes the configured boundary for optional OTLP export and alert-webhook wiring.
+- PHASE 11 does not ship a full external collector yet; it fixes the runtime
+  contract and status surface so multi-instance export can be enabled without
+  redefining observability semantics later.

@@ -178,6 +178,8 @@ export function buildOwnerCabinetDashboard(input: {
     periodStart: input.periodStart.toISOString(),
     periodEnd: input.periodEnd.toISOString(),
     generatedAt: new Date().toISOString(),
+    dataSource: "LIVE",
+    snapshotId: null,
     currency: input.currency,
     totalOrders: input.orders.length,
     paidOrders: paidOrders.length,

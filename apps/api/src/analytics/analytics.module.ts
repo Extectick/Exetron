@@ -5,19 +5,23 @@ import {
   Get,
   Injectable,
   Module,
+  NotFoundException,
   Post,
   Query
 } from "@nestjs/common";
 import { ApiPropertyOptional, ApiTags } from "@nestjs/swagger";
 import type {
+  AnalyticsPrecomputeRunDto,
   AnalyticsSnapshotDto,
   CreateAnalyticsSnapshotRequest,
+  CreateAnalyticsPrecomputeRequest,
   ListResponse,
   OwnerCabinetDashboardDto
 } from "@exetron/contracts";
 import type { Prisma } from "@exetron/database";
 import {
   IsDateString,
+  IsIn,
   IsOptional,
   IsUUID
 } from "class-validator";
@@ -51,11 +55,41 @@ class AnalyticsQueryDto {
   @IsOptional()
   @IsDateString()
   periodEnd?: string;
+
+  @ApiPropertyOptional({ enum: ["LIVE", "PREFER_SNAPSHOT", "SNAPSHOT_ONLY"] })
+  @IsOptional()
+  @IsIn(["LIVE", "PREFER_SNAPSHOT", "SNAPSHOT_ONLY"])
+  mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
 }
 
 class CreateAnalyticsSnapshotDto
   extends AnalyticsQueryDto
   implements CreateAnalyticsSnapshotRequest {}
+
+class CreateAnalyticsPrecomputeDto
+  extends CreateAnalyticsSnapshotDto
+  implements CreateAnalyticsPrecomputeRequest {
+  @ApiPropertyOptional({ enum: ["OWNER_DASHBOARD"] })
+  @IsOptional()
+  @IsIn(["OWNER_DASHBOARD"])
+  kind?: "OWNER_DASHBOARD";
+}
+
+function buildAnalyticsArtifactKey(input: {
+  kind: string;
+  tenantId: string;
+  storeId: string | null;
+  periodStart: Date;
+  periodEnd: Date;
+}): string {
+  return [
+    input.kind.toLowerCase(),
+    input.tenantId,
+    input.storeId ?? "all-stores",
+    input.periodStart.toISOString(),
+    input.periodEnd.toISOString()
+  ].join(":");
+}
 
 function mapAnalyticsSnapshot(snapshot: {
   id: string;
@@ -73,6 +107,14 @@ function mapAnalyticsSnapshot(snapshot: {
     tenantId: snapshot.tenantId,
     storeId: snapshot.storeId,
     kind: snapshot.kind as "OWNER_DASHBOARD",
+    artifactKey: buildAnalyticsArtifactKey({
+      kind: snapshot.kind,
+      tenantId: snapshot.tenantId,
+      storeId: snapshot.storeId,
+      periodStart: snapshot.periodStart,
+      periodEnd: snapshot.periodEnd
+    }),
+    artifactStatus: "READY",
     periodStart: snapshot.periodStart.toISOString(),
     periodEnd: snapshot.periodEnd.toISOString(),
     payload:
@@ -99,65 +141,24 @@ export class AnalyticsService {
   ): Promise<OwnerCabinetDashboardDto> {
     return this.dbContext.withRequestContext(context, async (tx) => {
       const scope = await this.resolveAnalyticsScope(tx, context, query);
-      const currency = await this.resolveCurrency(tx, scope.tenantId, scope.storeId);
+      const snapshot =
+        query.mode && query.mode !== "LIVE"
+          ? await this.findSnapshotForScope(tx, scope)
+          : null;
 
-      const orders = await tx.order.findMany({
-        where: {
-          tenantId: scope.tenantId,
-          storeId: { in: scope.stores.map((store) => store.id) },
-          placedAt: {
-            gte: scope.periodStart,
-            lte: scope.periodEnd
-          }
-        },
-        orderBy: { placedAt: "desc" },
-        include: {
-          items: {
-            select: {
-              productId: true,
-              quantity: true,
-              lineTotal: true,
-              snapshot: true
-            }
-          },
-          paymentIntents: {
-            where: {
-              status: "COMPLETED"
-            },
-            orderBy: { createdAt: "desc" },
-            select: {
-              paidAmount: true
-            }
-          }
+      if (query.mode === "SNAPSHOT_ONLY") {
+        if (!snapshot) {
+          throw new NotFoundException("Precomputed analytics snapshot was not found for this scope.");
         }
-      });
 
-      return buildOwnerCabinetDashboard({
-        tenantId: scope.tenantId,
-        storeId: scope.storeId,
-        periodStart: scope.periodStart,
-        periodEnd: scope.periodEnd,
-        currency,
-        stores: scope.stores,
-        orders: orders.map((order) => ({
-          id: order.id,
-          storeId: order.storeId,
-          channel: order.channel,
-          status: order.status,
-          refundStatus: order.refundStatus,
-          total: order.total.toFixed(2),
-          paidAmount: order.paymentIntents[0]?.paidAmount.toFixed(2) ?? "0.00",
-          items: order.items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            lineTotal: item.lineTotal.toFixed(2),
-            snapshot:
-              item.snapshot && typeof item.snapshot === "object"
-                ? (item.snapshot as Record<string, unknown>)
-                : {}
-          }))
-        }))
-      });
+        return this.mapDashboardFromSnapshot(snapshot);
+      }
+
+      if (query.mode === "PREFER_SNAPSHOT" && snapshot) {
+        return this.mapDashboardFromSnapshot(snapshot);
+      }
+
+      return this.buildLiveDashboardTx(tx, scope);
     });
   }
 
@@ -195,18 +196,7 @@ export class AnalyticsService {
   ): Promise<AnalyticsSnapshotDto> {
     return this.dbContext.withRequestContext(context, async (tx) => {
       const scope = await this.resolveAnalyticsScope(tx, context, dto);
-      const dashboard = await this.getOwnerCabinetDashboard(context, dto);
-      const snapshot = await tx.analyticsSnapshot.create({
-        data: {
-          tenantId: scope.tenantId,
-          storeId: scope.storeId,
-          kind: "OWNER_DASHBOARD",
-          periodStart: scope.periodStart,
-          periodEnd: scope.periodEnd,
-          payload: dashboard as unknown as Prisma.InputJsonObject,
-          createdByUserId: context.scope === "device" ? null : context.userId
-        }
-      });
+      const snapshot = await this.createOwnerDashboardSnapshotTx(tx, context, scope);
 
       await this.audit.recordTx(tx, {
         tenantId: snapshot.tenantId,
@@ -236,6 +226,226 @@ export class AnalyticsService {
 
       return mapAnalyticsSnapshot(snapshot);
     });
+  }
+
+  async createPrecomputeRun(
+    context: RequestContext,
+    dto: CreateAnalyticsPrecomputeDto
+  ): Promise<AnalyticsPrecomputeRunDto> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      const scope = await this.resolveAnalyticsScope(tx, context, dto);
+      const artifactKey = buildAnalyticsArtifactKey({
+        kind: dto.kind ?? "OWNER_DASHBOARD",
+        tenantId: scope.tenantId,
+        storeId: scope.storeId,
+        periodStart: scope.periodStart,
+        periodEnd: scope.periodEnd
+      });
+
+      await this.audit.recordTx(tx, {
+        tenantId: scope.tenantId,
+        storeId: scope.storeId,
+        actorType: context.scope === "device" ? "DEVICE" : "USER",
+        actorId: context.scope === "device" && context.deviceId ? context.deviceId : context.userId,
+        action: "analytics.precompute_requested",
+        entityType: "analytics_artifact",
+        entityId: artifactKey,
+        payload: {
+          kind: dto.kind ?? "OWNER_DASHBOARD",
+          executionMode: "INLINE"
+        }
+      });
+
+      await this.domainEvents.record(tx, {
+        tenantId: scope.tenantId,
+        eventName: "analytics.precompute_requested",
+        aggregate: "analytics_artifact",
+        aggregateId: artifactKey,
+        payload: {
+          kind: dto.kind ?? "OWNER_DASHBOARD",
+          storeId: scope.storeId,
+          executionMode: "INLINE"
+        }
+      });
+
+      const snapshot = await this.createOwnerDashboardSnapshotTx(tx, context, scope);
+
+      await this.audit.recordTx(tx, {
+        tenantId: snapshot.tenantId,
+        storeId: snapshot.storeId,
+        actorType: context.scope === "device" ? "DEVICE" : "USER",
+        actorId: context.scope === "device" && context.deviceId ? context.deviceId : context.userId,
+        action: "analytics.precompute_completed",
+        entityType: "analytics_artifact",
+        entityId: artifactKey,
+        payload: {
+          snapshotId: snapshot.id,
+          kind: snapshot.kind
+        }
+      });
+
+      await this.domainEvents.record(tx, {
+        tenantId: snapshot.tenantId,
+        eventName: "analytics.precompute_completed",
+        aggregate: "analytics_artifact",
+        aggregateId: artifactKey,
+        payload: {
+          snapshotId: snapshot.id,
+          kind: snapshot.kind,
+          storeId: snapshot.storeId
+        }
+      });
+
+      return {
+        kind: "OWNER_DASHBOARD",
+        executionMode: "INLINE",
+        status: "COMPLETED",
+        generatedAt: snapshot.createdAt.toISOString(),
+        artifactKey,
+        snapshot: mapAnalyticsSnapshot(snapshot)
+      };
+    });
+  }
+
+  private async buildLiveDashboardTx(
+    tx: Prisma.TransactionClient,
+    scope: {
+      tenantId: string;
+      storeId: string | null;
+      stores: Array<{ id: string; code: string; name: string }>;
+      periodStart: Date;
+      periodEnd: Date;
+    }
+  ): Promise<OwnerCabinetDashboardDto> {
+    const currency = await this.resolveCurrency(tx, scope.tenantId, scope.storeId);
+
+    const orders = await tx.order.findMany({
+      where: {
+        tenantId: scope.tenantId,
+        storeId: { in: scope.stores.map((store) => store.id) },
+        placedAt: {
+          gte: scope.periodStart,
+          lte: scope.periodEnd
+        }
+      },
+      orderBy: { placedAt: "desc" },
+      include: {
+        items: {
+          select: {
+            productId: true,
+            quantity: true,
+            lineTotal: true,
+            snapshot: true
+          }
+        },
+        paymentIntents: {
+          where: {
+            status: "COMPLETED"
+          },
+          orderBy: { createdAt: "desc" },
+          select: {
+            paidAmount: true
+          }
+        }
+      }
+    });
+
+    return {
+      ...buildOwnerCabinetDashboard({
+        tenantId: scope.tenantId,
+        storeId: scope.storeId,
+        periodStart: scope.periodStart,
+        periodEnd: scope.periodEnd,
+        currency,
+        stores: scope.stores,
+        orders: orders.map((order) => ({
+          id: order.id,
+          storeId: order.storeId,
+          channel: order.channel,
+          status: order.status,
+          refundStatus: order.refundStatus,
+          total: order.total.toFixed(2),
+          paidAmount: order.paymentIntents[0]?.paidAmount.toFixed(2) ?? "0.00",
+          items: order.items.map((item) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            lineTotal: item.lineTotal.toFixed(2),
+            snapshot:
+              item.snapshot && typeof item.snapshot === "object"
+                ? (item.snapshot as Record<string, unknown>)
+                : {}
+          }))
+        }))
+      }),
+      dataSource: "LIVE",
+      snapshotId: null,
+      generatedAt: new Date().toISOString()
+    };
+  }
+
+  private async createOwnerDashboardSnapshotTx(
+    tx: Prisma.TransactionClient,
+    context: RequestContext,
+    scope: {
+      tenantId: string;
+      storeId: string | null;
+      stores: Array<{ id: string; code: string; name: string }>;
+      periodStart: Date;
+      periodEnd: Date;
+    }
+  ) {
+    const dashboard = await this.buildLiveDashboardTx(tx, scope);
+    return tx.analyticsSnapshot.create({
+      data: {
+        tenantId: scope.tenantId,
+        storeId: scope.storeId,
+        kind: "OWNER_DASHBOARD",
+        periodStart: scope.periodStart,
+        periodEnd: scope.periodEnd,
+        payload: dashboard as unknown as Prisma.InputJsonObject,
+        createdByUserId: context.scope === "device" ? null : context.userId
+      }
+    });
+  }
+
+  private async findSnapshotForScope(
+    tx: Prisma.TransactionClient,
+    scope: {
+      tenantId: string;
+      storeId: string | null;
+      periodStart: Date;
+      periodEnd: Date;
+    }
+  ) {
+    return tx.analyticsSnapshot.findFirst({
+      where: {
+        tenantId: scope.tenantId,
+        storeId: scope.storeId,
+        kind: "OWNER_DASHBOARD",
+        periodStart: scope.periodStart,
+        periodEnd: scope.periodEnd
+      },
+      orderBy: { createdAt: "desc" }
+    });
+  }
+
+  private mapDashboardFromSnapshot(snapshot: {
+    id: string;
+    payload: Prisma.JsonValue;
+    createdAt: Date;
+  }): OwnerCabinetDashboardDto {
+    if (!snapshot.payload || typeof snapshot.payload !== "object") {
+      throw new BadRequestException("Analytics snapshot payload is invalid.");
+    }
+
+    const payload = snapshot.payload as unknown as OwnerCabinetDashboardDto;
+
+    return {
+      ...payload,
+      dataSource: "SNAPSHOT",
+      snapshotId: snapshot.id,
+      generatedAt: snapshot.createdAt.toISOString()
+    };
   }
 
   private async resolveAnalyticsScope(
@@ -368,6 +578,15 @@ class AnalyticsController {
     @Body() dto: CreateAnalyticsSnapshotDto
   ): Promise<AnalyticsSnapshotDto> {
     return this.analyticsService.createSnapshot(context, dto);
+  }
+
+  @Post("precompute")
+  @Permissions("analytics.write")
+  createPrecomputeRun(
+    @CurrentContext() context: RequestContext,
+    @Body() dto: CreateAnalyticsPrecomputeDto
+  ): Promise<AnalyticsPrecomputeRunDto> {
+    return this.analyticsService.createPrecomputeRun(context, dto);
   }
 }
 

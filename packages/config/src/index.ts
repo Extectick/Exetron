@@ -38,6 +38,12 @@ const apiSchema = commonSchema.extend({
   LOG_LEVEL: z
     .enum(["error", "warn", "log", "debug", "verbose"])
     .default("log"),
+  OBSERVABILITY_SERVICE_NAME: z.string().min(1).default("exetron-api"),
+  OBSERVABILITY_EXPORTER_MODE: z
+    .enum(["internal", "otlp_http"])
+    .default("internal"),
+  OBSERVABILITY_OTLP_ENDPOINT: z.string().url().optional(),
+  OBSERVABILITY_ALERT_WEBHOOK_URL: z.string().url().optional(),
   MINIO_ENDPOINT: z.string().min(1),
   MINIO_PORT: z.coerce.number().default(9000),
   MINIO_ROOT_USER: z.string().min(1),

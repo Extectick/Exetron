@@ -4,6 +4,7 @@ import type { AnalyticsSnapshotDto, OwnerCabinetDashboardDto } from "@exetron/co
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../../components/auth-provider";
 import {
+  createAnalyticsPrecomputeRun,
   createAnalyticsSnapshot,
   getOwnerCabinetDashboard,
   listAnalyticsSnapshots
@@ -29,6 +30,9 @@ export default function OwnerCabinetPage() {
   const [storeId, setStoreId] = useState("");
   const [periodStart, setPeriodStart] = useState(defaultPeriodStart());
   const [periodEnd, setPeriodEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [dashboardMode, setDashboardMode] = useState<
+    "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY"
+  >("LIVE");
   const [dashboard, setDashboard] = useState<OwnerCabinetDashboardDto | null>(null);
   const [snapshots, setSnapshots] = useState<AnalyticsSnapshotDto[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +53,8 @@ export default function OwnerCabinetPage() {
           tenantId: effectiveTenantId,
           storeId: effectiveStoreId,
           periodStart: startOfDay(periodStart),
-          periodEnd: endOfDay(periodEnd)
+          periodEnd: endOfDay(periodEnd),
+          mode: dashboardMode
         }),
         listAnalyticsSnapshots(session.accessToken, {
           tenantId: effectiveTenantId,
@@ -67,7 +72,7 @@ export default function OwnerCabinetPage() {
     } finally {
       setBusy(false);
     }
-  }, [effectiveStoreId, effectiveTenantId, periodEnd, periodStart, session?.accessToken]);
+  }, [dashboardMode, effectiveStoreId, effectiveTenantId, periodEnd, periodStart, session?.accessToken]);
 
   useEffect(() => {
     if (!effectiveTenantId || !session?.accessToken) {
@@ -110,6 +115,19 @@ export default function OwnerCabinetPage() {
             <span>Period end</span>
             <input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} />
           </label>
+          <label className="field">
+            <span>Read mode</span>
+            <select
+              value={dashboardMode}
+              onChange={(event) =>
+                setDashboardMode(event.target.value as typeof dashboardMode)
+              }
+            >
+              <option value="LIVE">LIVE</option>
+              <option value="PREFER_SNAPSHOT">PREFER_SNAPSHOT</option>
+              <option value="SNAPSHOT_ONLY">SNAPSHOT_ONLY</option>
+            </select>
+          </label>
         </div>
         {error ? <p className="error-banner">{error}</p> : null}
       </section>
@@ -117,6 +135,13 @@ export default function OwnerCabinetPage() {
       {dashboard ? (
         <>
           <section className="dashboard-grid">
+            <article className="stat-card">
+              <span className="eyebrow">Source</span>
+              <strong>{dashboard.dataSource}</strong>
+              <p className="muted-copy">
+                Generated at {new Date(dashboard.generatedAt).toLocaleString()}
+              </p>
+            </article>
             <article className="stat-card">
               <span className="eyebrow">Revenue</span>
               <strong>
@@ -287,6 +312,32 @@ export default function OwnerCabinetPage() {
                   }}
                 >
                   Save Snapshot
+                </button>
+                <button
+                  className="mini-button"
+                  onClick={() => {
+                    if (!session?.accessToken) {
+                      return;
+                    }
+
+                    void createAnalyticsPrecomputeRun(session.accessToken, {
+                      tenantId: effectiveTenantId,
+                      storeId: effectiveStoreId ?? null,
+                      periodStart: startOfDay(periodStart),
+                      periodEnd: endOfDay(periodEnd),
+                      kind: "OWNER_DASHBOARD"
+                    })
+                      .then(() => loadOwnerCabinet())
+                      .catch((caughtError) =>
+                        setError(
+                          caughtError instanceof Error
+                            ? caughtError.message
+                            : "Analytics precompute run failed."
+                        )
+                      );
+                  }}
+                >
+                  Precompute
                 </button>
               </div>
               <pre>{JSON.stringify(snapshots, null, 2)}</pre>

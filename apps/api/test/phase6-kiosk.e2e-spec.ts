@@ -91,6 +91,21 @@ describe("PHASE 6 kiosk runtime", () => {
       .expect(201);
     const device = deviceResponse.body as { id: string; name: string };
 
+    const kioskAccessResponse = await request(httpServer)
+      .post(`/devices/${device.id}/kiosk-access-token`)
+      .set("Authorization", `Bearer ${adminTokens.accessToken}`)
+      .expect(201);
+    const kioskAccess = kioskAccessResponse.body as {
+      deviceId: string;
+      accessToken: string;
+      expiresAt: string;
+      kioskPath: string;
+    };
+
+    expect(kioskAccess.deviceId).toBe(device.id);
+    expect(kioskAccess.accessToken.length).toBeGreaterThan(20);
+    expect(kioskAccess.kioskPath).toContain(`/kiosk/${device.id}?token=`);
+
     await request(httpServer)
       .put("/settings/tenant")
       .query({ tenantId: tenant.id })
@@ -178,8 +193,15 @@ describe("PHASE 6 kiosk runtime", () => {
     const bootstrapResponse = await request(httpServer)
       .get("/kiosk/bootstrap")
       .query({ deviceId: device.id })
+      .expect(401);
+
+    expect(bootstrapResponse.body.message).toBe("Kiosk access token is required.");
+
+    const authorizedBootstrapResponse = await request(httpServer)
+      .get("/kiosk/bootstrap")
+      .query({ deviceId: device.id, accessToken: kioskAccess.accessToken })
       .expect(200);
-    const bootstrap = bootstrapResponse.body as {
+    const bootstrap = authorizedBootstrapResponse.body as {
       tenantId: string;
       storeId: string;
       deviceId: string;
@@ -227,12 +249,28 @@ describe("PHASE 6 kiosk runtime", () => {
           }
         ]
       })
+      .expect(401);
+
+    await request(httpServer)
+      .post("/kiosk/checkout")
+      .send({
+        deviceId: device.id,
+        accessToken: kioskAccess.accessToken,
+        paymentMethod: "CARD",
+        items: [
+          {
+            productId: product.id,
+            quantity: 1
+          }
+        ]
+      })
       .expect(400);
 
     const checkoutResponse = await request(httpServer)
       .post("/kiosk/checkout")
       .send({
         deviceId: device.id,
+        accessToken: kioskAccess.accessToken,
         customerName: "Kiosk Guest",
         paymentMethod: "CARD",
         items: [

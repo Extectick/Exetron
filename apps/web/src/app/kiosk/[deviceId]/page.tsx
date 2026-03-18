@@ -1,6 +1,7 @@
 "use client";
 
 import type { CompiledCatalogProductDto, KioskBootstrapResponse } from "@exetron/contracts";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getKioskBootstrap, kioskCheckout } from "../../../lib/api";
 
@@ -20,6 +21,7 @@ interface CartLine {
 }
 
 export default function KioskDevicePage({ params }: KioskPageProps) {
+  const searchParams = useSearchParams();
   const [deviceId, setDeviceId] = useState("");
   const [bootstrap, setBootstrap] = useState<KioskBootstrapResponse | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -29,6 +31,7 @@ export default function KioskDevicePage({ params }: KioskPageProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const kioskAccessToken = searchParams.get("token") ?? "";
 
   useEffect(() => {
     void params.then((resolved) => setDeviceId(resolved.deviceId));
@@ -39,8 +42,14 @@ export default function KioskDevicePage({ params }: KioskPageProps) {
       return;
     }
 
+    if (!kioskAccessToken) {
+      setBootstrap(null);
+      setError("Missing kiosk access token in URL.");
+      return;
+    }
+
     setBusy(true);
-    void getKioskBootstrap(deviceId)
+    void getKioskBootstrap(deviceId, kioskAccessToken)
       .then((response) => {
         setBootstrap(response);
         const firstMethod = response.rules.allowedPaymentMethods[0] ?? "CARD";
@@ -51,7 +60,7 @@ export default function KioskDevicePage({ params }: KioskPageProps) {
         setError(caughtError instanceof Error ? caughtError.message : "Kiosk bootstrap failed.")
       )
       .finally(() => setBusy(false));
-  }, [deviceId]);
+  }, [deviceId, kioskAccessToken]);
 
   const products = useMemo(() => {
     if (!bootstrap) {
@@ -117,6 +126,7 @@ export default function KioskDevicePage({ params }: KioskPageProps) {
     try {
       const response = await kioskCheckout({
         deviceId: bootstrap.deviceId,
+        accessToken: kioskAccessToken,
         customerName: customerName || null,
         note: note || null,
         paymentMethod,

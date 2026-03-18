@@ -21,6 +21,7 @@ import { HealthController } from "./health.controller";
 import { KitchenModule } from "./kitchen/kitchen.module";
 import { KioskModule } from "./kiosk/kiosk.module";
 import { ModifiersModule } from "./modifiers/modifiers.module";
+import { OnboardingModule } from "./onboarding/onboarding.module";
 import { OrdersModule } from "./orders/orders.module";
 import { PaymentsModule } from "./payments/payments.module";
 import { PosModule } from "./pos/pos.module";
@@ -50,6 +51,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     AuthModule,
     AnalyticsModule,
     AuditModule,
+    OnboardingModule,
     TenantsModule,
     BrandsModule,
     CategoriesModule,

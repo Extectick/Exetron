@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException
 } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import type { ObservabilityStatusDto } from "@exetron/contracts";
 import { Public } from "./common/decorators/public.decorator";
 import { PrismaService } from "./database/prisma.service";
 import { ObservabilityService } from "./observability/observability.service";
@@ -72,5 +73,11 @@ export class HealthController {
   @Header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
   getMetrics(): string {
     return this.observability.renderPrometheusMetrics();
+  }
+
+  @Public()
+  @Get("observability")
+  getObservabilityStatus(): ObservabilityStatusDto {
+    return this.observability.getObservabilityStatus();
   }
 }

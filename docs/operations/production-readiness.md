@@ -6,6 +6,7 @@ PHASE 10 hardening covers:
 - structured JSON logs in API runtime
 - request ids and standardized error envelopes
 - liveness, readiness and metrics endpoints
+- observability boundary/status endpoint for external exporter rollout
 - CI pipeline with build, unit and live Postgres e2e gates
 - release artifact packaging on protected branch pushes
 - migration safety and rollback checklists
@@ -17,6 +18,7 @@ PHASE 10 hardening covers:
 - `GET /health/live`
 - `GET /health/readiness`
 - `GET /health/metrics`
+- `GET /health/observability`
 
 ## Release Gate
 
@@ -35,7 +37,7 @@ Before production promotion:
 - Apply Prisma migrations before rotating traffic.
 - Start new application instances with the same environment revision.
 - Verify `GET /health/readiness` before switching traffic.
-- Use `GET /health/metrics` and structured logs to validate the rollout window.
+- Use `GET /health/metrics`, `GET /health/observability`, and structured logs to validate the rollout window.
 
 ## Environment Baseline
 
@@ -46,3 +48,4 @@ Required production concerns:
 - S3-compatible object storage credentials outside repo
 - HTTPS termination in front of API and web
 - secret rotation policy for platform admin and payment/provider credentials
+- explicit OTLP endpoint / alert webhook configuration before enabling external observability exporters

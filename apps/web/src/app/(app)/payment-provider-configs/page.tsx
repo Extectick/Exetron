@@ -106,6 +106,10 @@ export default function PaymentProviderConfigsPage() {
               <p>Channels: {config.allowedChannels.join(", ")}</p>
               <p>Auto-confirm: {config.autoConfirmOrderOnSuccess ? "true" : "false"}</p>
               <p>Enabled: {config.enabled ? "true" : "false"}</p>
+              <p>
+                Secrets:{" "}
+                {config.secrets?.hasSecrets ? config.secrets.keys.join(", ") : "none"}
+              </p>
               <pre>{JSON.stringify(config.settings ?? {}, null, 2)}</pre>
               <button
                 className="mini-button"

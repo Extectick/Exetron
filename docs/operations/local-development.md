@@ -30,10 +30,16 @@
 - For new schema work, use `corepack pnpm --filter @exetron/database db:migrate -- --name <migration_name>`.
 - Live Docker runtime verification, API smoke e2e and workspace build/test/typecheck
   are already passing in this repository state.
-- After creating an active `KIOSK` device, the public kiosk UI is available at
-  `/kiosk/<deviceId>` on the running web app.
+- After creating an active `KIOSK` device, issue a signed kiosk access token via
+  `POST /devices/:id/kiosk-access-token`.
+- The public kiosk UI is then available at
+  `/kiosk/<deviceId>?token=<kioskAccessToken>` on the running web app.
+- Payment provider configs can now receive `secrets` through the API; the web
+  admin page shows only redacted secret metadata, not the secret values.
+- Owner cabinet supports `LIVE`, `PREFER_SNAPSHOT`, and `SNAPSHOT_ONLY` reads,
+  and `POST /analytics/precompute` generates the corresponding snapshot artifact.
 - Hardening probes are available at `/health`, `/health/live`, `/health/readiness`
-  and `/health/metrics` on the API.
+  `/health/metrics`, and `/health/observability` on the API.
 - Production-oriented checklists live in:
   - `docs/operations/production-readiness.md`
   - `docs/operations/migration-safety-checklist.md`
