@@ -42,5 +42,7 @@ export const permissionSeed = [
   { key: "payment_configs.read", name: "Read payment provider configs" },
   { key: "payment_configs.write", name: "Write payment provider configs" },
   { key: "analytics.read", name: "Read analytics and owner cabinet" },
-  { key: "analytics.write", name: "Write analytics snapshots" }
+  { key: "analytics.write", name: "Write analytics snapshots" },
+  { key: "customers.read", name: "Read customer profiles and promotions" },
+  { key: "customers.write", name: "Write customer profiles, loyalty, and promotions" }
 ] as const;

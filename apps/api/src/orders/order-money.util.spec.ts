@@ -31,7 +31,52 @@ describe("order-money.util", () => {
     ).toEqual({
       subtotal: "26.00",
       modifierTotal: "4.00",
+      discountTotal: "0.00",
       total: "30.00"
+    });
+  });
+
+  it("adds fulfillment fee to the final cart total", () => {
+    expect(
+      calculateCartTotals(
+        [
+          {
+            quantity: 1,
+            unitBasePrice: "12.00",
+            modifierTotal: "1.50"
+          }
+        ],
+        {
+          fulfillmentFee: "3.00"
+        }
+      )
+    ).toEqual({
+      subtotal: "12.00",
+      modifierTotal: "1.50",
+      discountTotal: "0.00",
+      total: "16.50"
+    });
+  });
+
+  it("subtracts discount total from the final cart total", () => {
+    expect(
+      calculateCartTotals(
+        [
+          {
+            quantity: 1,
+            unitBasePrice: "20.00",
+            modifierTotal: "0.00"
+          }
+        ],
+        {
+          discountTotal: "5.00"
+        }
+      )
+    ).toEqual({
+      subtotal: "20.00",
+      modifierTotal: "0.00",
+      discountTotal: "5.00",
+      total: "15.00"
     });
   });
 });

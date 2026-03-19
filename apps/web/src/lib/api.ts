@@ -2,11 +2,14 @@ import type {
   BrandingConfigDto,
   AnalyticsSnapshotDto,
   AuthMeResponse,
+  CustomerProfileDto,
   AuthTokensResponse,
   CountryProfileDto,
   CustomizationEvaluationDto,
   CustomizationRuleDto,
   FeatureFlagDto,
+  FulfillmentDispatchBoardItemDto,
+  FulfillmentOrderProjectionDto,
   KitchenBoardEntryDto,
   KioskAccessTokenDto,
   KioskBootstrapResponse,
@@ -26,6 +29,7 @@ import type {
   PaymentIntentListItemDto,
   PaymentProviderConfigDto,
   PaymentReconciliationSummaryDto,
+  PromotionCampaignDto,
   RefreshRequest,
   RenderLocalizedTemplateResponse,
   StorefrontBootstrapResponse,
@@ -35,6 +39,7 @@ import type {
   StorefrontOrderTrackingResponse,
   StorefrontQrLinkDto,
   StorefrontQrResolutionDto,
+  StoreFulfillmentConfigDto,
   StoreSettingDto,
   TenantSettingDto,
   UpsertFeatureFlagRequest,
@@ -590,6 +595,122 @@ export function evaluateCustomization(
   );
 }
 
+export function listCustomerProfiles(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    storeId?: string;
+    phone?: string;
+    status?: "ACTIVE" | "MERGED" | "ARCHIVED";
+  }
+): Promise<ListResponse<CustomerProfileDto>> {
+  return request<ListResponse<CustomerProfileDto>>(
+    withSearchParams("/customers/profiles", params),
+    {},
+    accessToken
+  );
+}
+
+export function getCustomerProfile(
+  accessToken: string,
+  customerProfileId: string
+): Promise<CustomerProfileDto> {
+  return request<CustomerProfileDto>(`/customers/profiles/${customerProfileId}`, {}, accessToken);
+}
+
+export function adjustCustomerLoyalty(
+  accessToken: string,
+  customerProfileId: string,
+  payload: {
+    points: number;
+    description?: string | null;
+  }
+): Promise<CustomerProfileDto> {
+  return request<CustomerProfileDto>(
+    `/customers/profiles/${customerProfileId}/loyalty/adjust`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function listPromotions(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    storeId?: string;
+    status?: "ACTIVE" | "PAUSED" | "ARCHIVED";
+  }
+): Promise<ListResponse<PromotionCampaignDto>> {
+  return request<ListResponse<PromotionCampaignDto>>(
+    withSearchParams("/customers/promotions", params),
+    {},
+    accessToken
+  );
+}
+
+export function createPromotionCampaign(
+  accessToken: string,
+  payload: {
+    tenantId: string;
+    storeId?: string | null;
+    code: string;
+    name: string;
+    status?: "ACTIVE" | "PAUSED" | "ARCHIVED";
+    type: "PERCENTAGE" | "FIXED_AMOUNT" | "LOYALTY_REDEEM";
+    value: string;
+    minimumOrderTotal?: string;
+    maxDiscountAmount?: string | null;
+    pointsCost?: number | null;
+    segmentKeys?: string[];
+    usageLimit?: number | null;
+    activeFrom?: string | null;
+    activeTo?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }
+): Promise<PromotionCampaignDto> {
+  return request<PromotionCampaignDto>(
+    "/customers/promotions",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function patchPromotionCampaign(
+  accessToken: string,
+  promotionId: string,
+  payload: {
+    storeId?: string | null;
+    code?: string;
+    name?: string;
+    status?: "ACTIVE" | "PAUSED" | "ARCHIVED";
+    type?: "PERCENTAGE" | "FIXED_AMOUNT" | "LOYALTY_REDEEM";
+    value?: string;
+    minimumOrderTotal?: string;
+    maxDiscountAmount?: string | null;
+    pointsCost?: number | null;
+    segmentKeys?: string[];
+    usageLimit?: number | null;
+    activeFrom?: string | null;
+    activeTo?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }
+): Promise<PromotionCampaignDto> {
+  return request<PromotionCampaignDto>(
+    `/customers/promotions/${promotionId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
 export function listKitchenTickets(
   accessToken: string,
   params: {
@@ -911,6 +1032,7 @@ export function listStorefrontCustomerOrders(
   status: string;
   total: string;
   placedAt: string;
+  canRepeatOrder: boolean;
   tracking: {
     orderId: string;
     accessToken: string;
@@ -920,6 +1042,18 @@ export function listStorefrontCustomerOrders(
 }>> {
   return request(
     withSearchParams("/storefront/customer-sessions/orders", { accessToken })
+  );
+}
+
+export function repeatStorefrontCustomerOrder(
+  orderId: string,
+  accessToken: string
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(
+    withSearchParams(`/storefront/customer-sessions/orders/${orderId}/repeat`, { accessToken }),
+    {
+      method: "POST"
+    }
   );
 }
 
@@ -956,6 +1090,46 @@ export function updateStorefrontCart(
   }
 ): Promise<StorefrontCartSessionDto> {
   return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateStorefrontCartFulfillment(
+  cartId: string,
+  payload: {
+    accessToken: string;
+    fulfillment: {
+      mode: "DELIVERY" | "PICKUP" | "DINE_IN";
+      zoneCode?: string | null;
+      addressLine1?: string | null;
+      addressLine2?: string | null;
+      postalCode?: string | null;
+      contactless?: boolean;
+      pickupSlotLabel?: string | null;
+      tableCode?: string | null;
+      guestCount?: number | null;
+      instructions?: string | null;
+    };
+  }
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}/fulfillment`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function applyStorefrontPromotion(
+  cartId: string,
+  payload: {
+    accessToken: string;
+    code: string;
+    customerSessionToken?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+  }
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}/promotion`, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });
@@ -1055,4 +1229,146 @@ export function createStorefrontQrLink(
 
 export function resolveStorefrontQrToken(token: string): Promise<StorefrontQrResolutionDto> {
   return request<StorefrontQrResolutionDto>(`/storefront/qr/${token}`);
+}
+
+export function getFulfillmentConfig(
+  accessToken: string,
+  storeId: string
+): Promise<StoreFulfillmentConfigDto> {
+  return request<StoreFulfillmentConfigDto>(
+    withSearchParams("/fulfillment/config", { storeId }),
+    {},
+    accessToken
+  );
+}
+
+export function upsertStoreFulfillmentConfig(
+  accessToken: string,
+  payload: {
+    storeId: string;
+    enabledModes?: Array<"DELIVERY" | "PICKUP" | "DINE_IN">;
+    defaultMode?: "DELIVERY" | "PICKUP" | "DINE_IN";
+    deliveryZones?: Array<{
+      code: string;
+      name: string;
+      postalCodes: string[];
+      fee: string;
+      etaMinMinutes: number;
+      etaMaxMinutes: number;
+      slaMinutes: number;
+      isActive?: boolean;
+    }>;
+    pickup?: {
+      enabled?: boolean;
+      leadTimeMinutes?: number;
+      promisedWindowMinutes?: number;
+      instructions?: string | null;
+    };
+    dineIn?: {
+      enabled?: boolean;
+      leadTimeMinutes?: number;
+      tables?: Array<{
+        code: string;
+        label: string;
+        capacity: number;
+        isActive?: boolean;
+      }>;
+    };
+    providers?: Array<{
+      providerKey: string;
+      providerType?: "MANUAL" | "EXTERNAL_PLACEHOLDER";
+      enabled?: boolean;
+    }>;
+  }
+): Promise<StoreFulfillmentConfigDto> {
+  return request<StoreFulfillmentConfigDto>(
+    "/fulfillment/config/store",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function listFulfillmentDispatchBoard(
+  accessToken: string,
+  storeId: string
+): Promise<ListResponse<FulfillmentDispatchBoardItemDto>> {
+  return request<ListResponse<FulfillmentDispatchBoardItemDto>>(
+    withSearchParams("/fulfillment/dispatch-board", { storeId }),
+    {},
+    accessToken
+  );
+}
+
+export function getFulfillmentOrder(
+  accessToken: string,
+  orderId: string
+): Promise<FulfillmentOrderProjectionDto> {
+  return request<FulfillmentOrderProjectionDto>(`/fulfillment/orders/${orderId}`, {}, accessToken);
+}
+
+export function assignFulfillmentCourier(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    courierName: string;
+    courierPhone?: string | null;
+    courierExternalId?: string | null;
+  }
+): Promise<FulfillmentOrderProjectionDto> {
+  return request<FulfillmentOrderProjectionDto>(
+    `/fulfillment/orders/${orderId}/assignment`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function updateFulfillmentEta(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    etaAt?: string | null;
+    promisedAt?: string | null;
+  }
+): Promise<FulfillmentOrderProjectionDto> {
+  return request<FulfillmentOrderProjectionDto>(
+    `/fulfillment/orders/${orderId}/eta`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function updateFulfillmentStatus(
+  accessToken: string,
+  orderId: string,
+  payload: {
+    status:
+      | "PENDING"
+      | "SCHEDULED"
+      | "PREPARING"
+      | "READY_FOR_PICKUP"
+      | "OUT_FOR_DELIVERY"
+      | "DELIVERED"
+      | "PICKED_UP"
+      | "TABLE_ASSIGNED"
+      | "SERVED";
+    note?: string | null;
+  }
+): Promise<FulfillmentOrderProjectionDto> {
+  return request<FulfillmentOrderProjectionDto>(
+    `/fulfillment/orders/${orderId}/status`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
 }

@@ -148,6 +148,30 @@ enum RefundStatus {
   PENDING_MANUAL
 }
 
+enum CustomerProfileStatus {
+  ACTIVE
+  MERGED
+  ARCHIVED
+}
+
+enum LoyaltyLedgerEntryKind {
+  EARN
+  REDEEM
+  ADJUST
+}
+
+enum PromotionStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum PromotionType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  LOYALTY_REDEEM
+}
+
 enum PosShiftStatus {
   OPEN
   CLOSED
@@ -248,6 +272,10 @@ model Tenant {
   analyticsSnapshots   AnalyticsSnapshot[]
   kitchenTickets       KitchenTicket[]
   kioskPaymentHandoffs KioskPaymentHandoff[]
+  customerProfiles     CustomerProfile[]
+  loyaltyAccounts      LoyaltyAccount[]
+  loyaltyLedgerEntries LoyaltyLedgerEntry[]
+  promotionCampaigns   PromotionCampaign[]
 }
 
 model Brand {
@@ -298,6 +326,8 @@ model Store {
   analyticsSnapshots  AnalyticsSnapshot[]
   kitchenTickets      KitchenTicket[]
   kioskPaymentHandoffs KioskPaymentHandoff[]
+  customerProfiles    CustomerProfile[]       @relation("StoreCustomerProfiles")
+  promotionCampaigns  PromotionCampaign[]
 
   @@unique([tenantId, code])
 }
@@ -723,10 +753,106 @@ model AvailabilityWindow {
   @@index([storeId, weekday])
 }
 
+model CustomerProfile {
+  id               String                @id @default(uuid()) @db.Uuid
+  tenantId         String                @db.Uuid
+  preferredStoreId String?               @db.Uuid
+  fullName         String?
+  phone            String
+  phoneNormalized  String
+  status           CustomerProfileStatus @default(ACTIVE)
+  orderCount       Int                   @default(0)
+  completedOrderCount Int                @default(0)
+  totalSpent       Decimal               @default(0) @db.Decimal(12, 2)
+  lastOrderAt      DateTime?
+  lastSeenAt       DateTime?
+  segments         Json?
+  retentionState   Json?
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  preferredStore   Store?                @relation("StoreCustomerProfiles", fields: [preferredStoreId], references: [id], onDelete: SetNull)
+  loyaltyAccount   LoyaltyAccount?
+  loyaltyLedgerEntries LoyaltyLedgerEntry[]
+  carts            Cart[]
+  orders           Order[]
+
+  @@unique([tenantId, phoneNormalized])
+  @@index([tenantId, preferredStoreId, status])
+  @@index([tenantId, lastOrderAt])
+}
+
+model LoyaltyAccount {
+  id                 String          @id @default(uuid()) @db.Uuid
+  tenantId           String          @db.Uuid
+  customerProfileId  String          @db.Uuid @unique
+  pointsBalance      Int             @default(0)
+  totalEarnedPoints  Int             @default(0)
+  totalRedeemedPoints Int            @default(0)
+  tierKey            String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerProfile    CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  entries            LoyaltyLedgerEntry[]
+
+  @@index([tenantId, pointsBalance])
+}
+
+model LoyaltyLedgerEntry {
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @db.Uuid
+  customerProfileId String                @db.Uuid
+  loyaltyAccountId  String                @db.Uuid
+  orderId           String?               @db.Uuid
+  entryKind         LoyaltyLedgerEntryKind
+  points            Int
+  amount            Decimal?              @db.Decimal(12, 2)
+  description       String?
+  metadata          Json?
+  createdAt         DateTime              @default(now())
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerProfile   CustomerProfile       @relation(fields: [customerProfileId], references: [id], onDelete: Cascade)
+  loyaltyAccount    LoyaltyAccount        @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  order             Order?                @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, entryKind])
+  @@index([tenantId, customerProfileId, createdAt])
+}
+
+model PromotionCampaign {
+  id                String           @id @default(uuid()) @db.Uuid
+  tenantId          String           @db.Uuid
+  storeId           String?          @db.Uuid
+  code              String
+  name              String
+  status            PromotionStatus  @default(ACTIVE)
+  type              PromotionType
+  value             Decimal          @db.Decimal(12, 2)
+  minimumOrderTotal Decimal          @default(0) @db.Decimal(12, 2)
+  maxDiscountAmount Decimal?         @db.Decimal(12, 2)
+  pointsCost        Int?
+  segmentKeys       String[]         @default([])
+  usageLimit        Int?
+  usedCount         Int              @default(0)
+  activeFrom        DateTime?
+  activeTo          DateTime?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  store             Store?           @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, storeId, status, activeFrom, activeTo])
+}
+
 model Cart {
   id              String     @id @default(uuid()) @db.Uuid
   tenantId        String     @db.Uuid
   storeId         String     @db.Uuid
+  customerProfileId String?  @db.Uuid
   channel         OrderChannel @default(ADMIN)
   status          CartStatus @default(OPEN)
   customerName    String?
@@ -734,13 +860,23 @@ model Cart {
   note            String?
   subtotal        Decimal    @default(0) @db.Decimal(12, 2)
   modifierTotal   Decimal    @default(0) @db.Decimal(12, 2)
+  fulfillmentFee  Decimal    @default(0) @db.Decimal(12, 2)
+  discountTotal   Decimal    @default(0) @db.Decimal(12, 2)
   total           Decimal    @default(0) @db.Decimal(12, 2)
+  promotionCode   String?
+  promotionSnapshot Json?
+  fulfillmentMode String?
+  fulfillmentStatus String?
+  fulfillmentPayload Json?
+  promisedAt      DateTime?
+  etaAt           DateTime?
   deviceId        String?    @db.Uuid
   createdByUserId String?    @db.Uuid
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   store           Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   device          Device?    @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   createdByUser   User?      @relation("CartCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   items           CartItem[]
@@ -748,6 +884,7 @@ model Cart {
 
   @@index([tenantId, storeId, status])
   @@index([storeId, createdAt])
+  @@index([tenantId, customerProfileId, createdAt])
 }
 
 model CartItem {
@@ -787,6 +924,7 @@ model Order {
   tenantId        String       @db.Uuid
   storeId         String       @db.Uuid
   cartId          String?      @unique @db.Uuid
+  customerProfileId String?    @db.Uuid
   number          String       @unique
   channel         OrderChannel
   status          OrderStatus  @default(PLACED)
@@ -796,7 +934,16 @@ model Order {
   note            String?
   subtotal        Decimal      @default(0) @db.Decimal(12, 2)
   modifierTotal   Decimal      @default(0) @db.Decimal(12, 2)
+  fulfillmentFee  Decimal      @default(0) @db.Decimal(12, 2)
+  discountTotal   Decimal      @default(0) @db.Decimal(12, 2)
   total           Decimal      @default(0) @db.Decimal(12, 2)
+  promotionCode   String?
+  promotionSnapshot Json?
+  fulfillmentMode String?
+  fulfillmentStatus String?
+  fulfillmentPayload Json?
+  promisedAt      DateTime?
+  etaAt           DateTime?
   placedAt        DateTime     @default(now())
   confirmedAt     DateTime?
   readyAt         DateTime?
@@ -810,6 +957,7 @@ model Order {
   tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   store           Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
   cart            Cart?        @relation(fields: [cartId], references: [id], onDelete: SetNull)
+  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   device          Device?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   createdByUser   User?        @relation("OrderCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
   items           OrderItem[]
@@ -818,9 +966,11 @@ model Order {
   paymentAttempts PaymentAttempt[]
   kitchenTickets  KitchenTicket[]
   kioskPaymentHandoffs KioskPaymentHandoff[]
+  loyaltyLedgerEntries LoyaltyLedgerEntry[]
 
   @@index([tenantId, storeId, status, placedAt])
   @@index([storeId, placedAt])
+  @@index([tenantId, customerProfileId, placedAt])
 }
 
 model OrderItem {

@@ -10,6 +10,7 @@ import { BrandsModule } from "./brands/brands.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { CommonModule } from "./common/common.module";
 import { CustomizationModule } from "./customization/customization.module";
+import { CustomersModule } from "./customers/customers.module";
 import { EnvironmentModule } from "./common/environment.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { PermissionsGuard } from "./common/guards/permissions.guard";
@@ -17,6 +18,7 @@ import { DatabaseModule } from "./database/database.module";
 import { DevicesModule } from "./devices/devices.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
+import { FulfillmentModule } from "./fulfillment/fulfillment.module";
 import { HealthController } from "./health.controller";
 import { KitchenModule } from "./kitchen/kitchen.module";
 import { KioskModule } from "./kiosk/kiosk.module";
@@ -48,6 +50,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     EnvironmentModule,
     ObservabilityModule,
     CustomizationModule,
+    CustomersModule,
     DatabaseModule,
     DomainEventsModule,
     AuthModule,
@@ -73,6 +76,8 @@ import { ObservabilityModule } from "./observability/observability.module";
     DevicesModule,
     SettingsModule,
     FeatureFlagsModule
+    ,
+    FulfillmentModule
   ],
   controllers: [HealthController],
   providers: [

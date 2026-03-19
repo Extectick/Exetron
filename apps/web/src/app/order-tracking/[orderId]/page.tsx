@@ -78,6 +78,10 @@ export default function OrderTrackingPage({ params }: OrderTrackingPageProps) {
           <p style={{ marginBottom: 0, opacity: 0.72 }}>
             Status: {tracking.order.status} · Total: {tracking.order.total}
           </p>
+          <p style={{ marginBottom: 0, opacity: 0.72 }}>
+            Fulfillment: {tracking.fulfillment.mode ?? "Not selected"} ·{" "}
+            {tracking.fulfillment.status ?? "No fulfillment state"}
+          </p>
         </div>
 
         <div
@@ -146,6 +150,20 @@ export default function OrderTrackingPage({ params }: OrderTrackingPageProps) {
               <p style={{ margin: 0, opacity: 0.72 }}>
                 Channel: {tracking.order.channel}
               </p>
+              <p style={{ margin: 0, opacity: 0.72 }}>
+                Fulfillment fee: {tracking.fulfillment.fee}
+              </p>
+              <p style={{ margin: 0, opacity: 0.72 }}>
+                Promised: {tracking.fulfillment.promisedAt ?? "n/a"}
+              </p>
+              <p style={{ margin: 0, opacity: 0.72 }}>
+                ETA: {tracking.fulfillment.etaAt ?? "n/a"}
+              </p>
+              {tracking.fulfillment.courier?.courierName ? (
+                <p style={{ margin: 0, opacity: 0.72 }}>
+                  Courier: {tracking.fulfillment.courier.courierName}
+                </p>
+              ) : null}
             </section>
 
             <section

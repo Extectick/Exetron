@@ -328,6 +328,17 @@ describe("PHASE 13 storefront and public commerce channel", () => {
       })
       .expect(201);
 
+    await request(httpServer)
+      .patch(`/storefront/carts/${customerCart.cart.id}/fulfillment`)
+      .send({
+        accessToken: customerCart.access.accessToken,
+        fulfillment: {
+          mode: "PICKUP",
+          pickupSlotLabel: "ASAP"
+        }
+      })
+      .expect(200);
+
     const checkoutResponse = await request(httpServer)
       .post(`/storefront/carts/${customerCart.cart.id}/checkout`)
       .send({

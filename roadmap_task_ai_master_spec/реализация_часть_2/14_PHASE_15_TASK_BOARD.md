@@ -10,7 +10,7 @@
 Добавить customer growth layer через customer profiles, loyalty balances, points, coupons/promocodes, segmentation, retention hooks и repeat order experience.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 13` and `PHASE 14`
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить customer profile lifecycle and ownership model
-- [ ] Определить loyalty balance, points and accrual/redemption rules
-- [ ] Определить coupons/promocodes, segmentation and retention hooks
+- [x] Определить customer profile lifecycle and ownership model
+- [x] Определить loyalty balance, points and accrual/redemption rules
+- [x] Определить coupons/promocodes, segmentation and retention hooks
 
 ## Deliverables
 - customer profile model
@@ -36,8 +36,8 @@
 - coupon/promocode/segment/retention model
 
 ## Acceptance
-- [ ] Customer profile model не дублирует tenant user model
-- [ ] Loyalty and promo entities совместимы с existing orders and payments
+- [x] Customer profile model не дублирует tenant user model
+- [x] Loyalty and promo entities совместимы с existing orders and payments
 
 ## Notes/Risks
 - риск смешать staff identity and customer identity
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить runtime for profile creation and enrichment
-- [ ] Определить loyalty accrual and redemption runtime
-- [ ] Определить repeat order experience and retention hook contracts
+- [x] Определить runtime for profile creation and enrichment
+- [x] Определить loyalty accrual and redemption runtime
+- [x] Определить repeat order experience and retention hook contracts
 
 ## Deliverables
 - customer profile runtime contract
@@ -57,8 +57,8 @@
 - repeat order and retention contracts
 
 ## Acceptance
-- [ ] Понятно, как loyalty подключается к existing checkout without channel forks
-- [ ] Repeat order flow опирается на prior order snapshots
+- [x] Понятно, как loyalty подключается к existing checkout without channel forks
+- [x] Repeat order flow опирается на prior order snapshots
 
 ## Notes/Risks
 - риск сделать loyalty synchronous hard dependency of checkout
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить owner/operator surfaces для customer insights and offers
-- [ ] Определить customer-facing touchpoints для loyalty and repeat order flows
-- [ ] Определить promo management surface boundaries
+- [x] Определить owner/operator surfaces для customer insights and offers
+- [x] Определить customer-facing touchpoints для loyalty and repeat order flows
+- [x] Определить promo management surface boundaries
 
 ## Deliverables
 - CRM surface scope
@@ -78,8 +78,8 @@
 - promo management UI scope
 
 ## Acceptance
-- [ ] Понятны отдельные surface needs для operators and customers
-- [ ] Promo management UI не требует еще не спроектированных billing or ecosystem layers
+- [x] Понятны отдельные surface needs для operators and customers
+- [x] Promo management UI не требует еще не спроектированных billing or ecosystem layers
 
 ## Notes/Risks
 - риск превратить phase в marketing suite вместо commerce growth layer
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить async hooks для segmentation and retention triggers
-- [ ] Определить security/privacy boundaries для customer data
-- [ ] Определить extension points для future CRM or campaign integrations
+- [x] Определить async hooks для segmentation and retention triggers
+- [x] Определить security/privacy boundaries для customer data
+- [x] Определить extension points для future CRM or campaign integrations
 
 ## Deliverables
 - segmentation async boundary
@@ -99,8 +99,8 @@
 - CRM extension points
 
 ## Acceptance
-- [ ] Customer data policy совместима с tenant isolation and auditability
-- [ ] Retention hooks не зашиваются в конкретный channel runtime
+- [x] Customer data policy совместима с tenant isolation and auditability
+- [x] Retention hooks не зашиваются в конкретный channel runtime
 
 ## Notes/Risks
 - риск не учесть consent/privacy implications
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для profiles, loyalty, promos, segmentation, retention and repeat orders
-- [ ] Обновить tracker после первых CRM deliverables
-- [ ] Добавить ADR при изменении identity boundary or promo policy architecture
+- [x] Зафиксировать acceptance scenarios для profiles, loyalty, promos, segmentation, retention and repeat orders
+- [x] Обновить tracker после первых CRM deliverables
+- [x] Добавить ADR при изменении identity boundary or promo policy architecture
 
 ## Deliverables
 - loyalty/CRM acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if needed
 
 ## Acceptance
-- [ ] Все backlog items PHASE 15 присутствуют только в этой фазе
-- [ ] Документы позволяют реализовывать growth layer поэтапно
+- [x] Все backlog items PHASE 15 присутствуют только в этой фазе
+- [x] Документы позволяют реализовывать growth layer поэтапно
 
 ## Notes/Risks
 - риск не описать rollback behavior для failed redemption
@@ -130,23 +130,28 @@
 ---
 
 ## Done
-- _пусто_
+- customer identity выделен в отдельный `CustomerProfile` domain с tenant-scoped normalized phone ownership и без смешения с staff `User`
+- добавлены `LoyaltyAccount` и `LoyaltyLedgerEntry` для earn/redeem/adjust flows
+- добавлен `PromotionCampaign` runtime с percentage/fixed/loyalty-redeem mechanics и cart/order snapshot carry-over
+- storefront получил `PATCH /storefront/carts/:id/promotion`, customer growth summary в bootstrap и `POST /storefront/customer-sessions/orders/:id/repeat`
+- checkout finalize path теперь связывает order с customer profile, начисляет/списывает points и пишет `customer.*` events для segment/retention hooks
+- добавлены thin admin page `/customers`, shared API contracts, migration и e2e `phase15-customers`
 
 ## In Progress
-- _пусто_
+- `PHASE 16`
 
 ## Blocked
 - _пусто_
 
 ## Next
-- Определить customer profile lifecycle
-- Зафиксировать loyalty balance model
-- Определить promo, segmentation and repeat-order contracts
+- Перейти к `PHASE 16`
+- Использовать уже введенные customer/promo contracts как основу для payment/fiscal/provider integrations
+- Не смешивать future billing/subscription entitlements с `CustomerProfile`
 
 ## Phase Exit Summary
-- [ ] Customer profiles определены
-- [ ] Loyalty balances и points определены
-- [ ] Coupons and promocodes определены
-- [ ] Segmentation и retention hooks определены
-- [ ] Repeat order experience определен
-- [ ] Progress tracker обновлен
+- [x] Customer profiles определены
+- [x] Loyalty balances и points определены
+- [x] Coupons and promocodes определены
+- [x] Segmentation и retention hooks определены
+- [x] Repeat order experience определен
+- [x] Progress tracker обновлен

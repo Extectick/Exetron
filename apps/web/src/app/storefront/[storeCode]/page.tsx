@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   addStorefrontCartItem,
+  applyStorefrontPromotion,
   createStorefrontCart,
   createStorefrontCustomerSession,
   deleteStorefrontCartItem,
   getStorefrontBootstrap,
   listStorefrontCustomerOrders,
-  storefrontCheckout
+  repeatStorefrontCustomerOrder,
+  storefrontCheckout,
+  updateStorefrontCartFulfillment
 } from "../../../lib/api";
 
 type CustomerOrderList = Awaited<ReturnType<typeof listStorefrontCustomerOrders>>;
@@ -36,6 +39,14 @@ export default function StorefrontPage({
   const [customerPhone, setCustomerPhone] = useState("");
   const [note, setNote] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "QR">("CARD");
+  const [promotionCode, setPromotionCode] = useState("");
+  const [fulfillmentMode, setFulfillmentMode] = useState<"DELIVERY" | "PICKUP" | "DINE_IN">("DELIVERY");
+  const [zoneCode, setZoneCode] = useState("");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [pickupSlotLabel, setPickupSlotLabel] = useState("");
+  const [tableCode, setTableCode] = useState("");
+  const [guestCount, setGuestCount] = useState("2");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -60,6 +71,10 @@ export default function StorefrontPage({
     })
       .then((response) => {
         setBootstrap(response);
+        setFulfillmentMode(response.fulfillment.defaultMode);
+        setPromotionCode(response.availablePromotions[0]?.code ?? "");
+        setZoneCode(response.fulfillment.deliveryZones[0]?.code ?? "");
+        setTableCode(response.fulfillment.dineIn.tables[0]?.code ?? "");
         if (response.customerSession) {
           setCustomerName(response.customerSession.customerName ?? "");
           setCustomerPhone(response.customerSession.customerPhone);
@@ -329,6 +344,29 @@ export default function StorefrontPage({
                 Guest checkout stays anonymous. Customer mode signs a public session for this store
                 and lets the storefront show recent orders.
               </p>
+              {bootstrap.customerProfile ? (
+                <div
+                  style={{
+                    border: "1px solid rgba(0,0,0,0.08)",
+                    borderRadius: 16,
+                    padding: 12,
+                    display: "grid",
+                    gap: 6
+                  }}
+                >
+                  <strong>Loyalty profile</strong>
+                  <span>
+                    Points: {bootstrap.customerProfile.loyalty?.pointsBalance ?? 0} · spent{" "}
+                    {bootstrap.customerProfile.totalSpent}
+                  </span>
+                  <span>
+                    Segments: {bootstrap.customerProfile.segments.join(", ") || "none"}
+                  </span>
+                  <span>
+                    Retention: {bootstrap.customerProfile.retention?.templateKey ?? "n/a"}
+                  </span>
+                </div>
+              ) : null}
             </section>
 
             <section
@@ -415,12 +453,210 @@ export default function StorefrontPage({
                   ))}
                 </select>
               </label>
+              <label className="field">
+                <span>Promotion Code</span>
+                <input
+                  value={promotionCode}
+                  onChange={(event) => setPromotionCode(event.target.value)}
+                  placeholder="WELCOME10"
+                />
+              </label>
+              <button
+                className="ghost-button"
+                disabled={busy || !promotionCode.trim()}
+                onClick={() => {
+                  setBusy(true);
+                  void ensureCart()
+                    .then((session) => {
+                      if (!session) {
+                        throw new Error("Cart session was not created.");
+                      }
+
+                      return applyStorefrontPromotion(session.cart.id, {
+                        accessToken: session.access.accessToken,
+                        code: promotionCode.trim(),
+                        customerSessionToken:
+                          customerSession?.accessToken ?? customerSessionTokenFromQuery ?? null,
+                        customerName: customerName || null,
+                        customerPhone: customerPhone || null
+                      });
+                    })
+                    .then((updated) => {
+                      setCartSession(updated);
+                      setMessage(
+                        `Promotion applied: ${updated.cart.promotion?.code ?? promotionCode.trim()}.`
+                      );
+                      setError(null);
+                    })
+                    .catch((caughtError) =>
+                      setError(
+                        caughtError instanceof Error
+                          ? caughtError.message
+                          : "Promotion apply failed."
+                      )
+                    )
+                    .finally(() => setBusy(false));
+                }}
+              >
+                Apply Promotion
+              </button>
+              {bootstrap.availablePromotions.length ? (
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.68 }}>
+                  Active promos: {bootstrap.availablePromotions.map((item) => item.code).join(", ")}
+                </p>
+              ) : null}
+              <div
+                style={{
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  borderRadius: 16,
+                  padding: 12,
+                  display: "grid",
+                  gap: 10
+                }}
+              >
+                <div>
+                  <p style={{ margin: "0 0 4px", color: bootstrap.branding.accentColor }}>
+                    Fulfillment
+                  </p>
+                  <h3 style={{ margin: 0, fontSize: 18 }}>Delivery / pickup / dine-in</h3>
+                </div>
+                <label className="field">
+                  <span>Mode</span>
+                  <select
+                    value={fulfillmentMode}
+                    onChange={(event) =>
+                      setFulfillmentMode(event.target.value as "DELIVERY" | "PICKUP" | "DINE_IN")
+                    }
+                  >
+                    {bootstrap.fulfillment.enabledModes.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {fulfillmentMode === "DELIVERY" ? (
+                  <>
+                    <label className="field">
+                      <span>Delivery Zone</span>
+                      <select value={zoneCode} onChange={(event) => setZoneCode(event.target.value)}>
+                        {bootstrap.fulfillment.deliveryZones
+                          .filter((zone) => zone.isActive)
+                          .map((zone) => (
+                            <option key={zone.code} value={zone.code}>
+                              {zone.name} · fee {zone.fee}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Address</span>
+                      <input
+                        value={addressLine1}
+                        onChange={(event) => setAddressLine1(event.target.value)}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Postal Code</span>
+                      <input value={postalCode} onChange={(event) => setPostalCode(event.target.value)} />
+                    </label>
+                  </>
+                ) : null}
+                {fulfillmentMode === "PICKUP" ? (
+                  <label className="field">
+                    <span>Pickup Slot Label</span>
+                    <input
+                      value={pickupSlotLabel}
+                      onChange={(event) => setPickupSlotLabel(event.target.value)}
+                    />
+                  </label>
+                ) : null}
+                {fulfillmentMode === "DINE_IN" ? (
+                  <>
+                    <label className="field">
+                      <span>Table</span>
+                      <select value={tableCode} onChange={(event) => setTableCode(event.target.value)}>
+                        {bootstrap.fulfillment.dineIn.tables
+                          .filter((table) => table.isActive)
+                          .map((table) => (
+                            <option key={table.code} value={table.code}>
+                              {table.label} · cap {table.capacity}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Guest Count</span>
+                      <input value={guestCount} onChange={(event) => setGuestCount(event.target.value)} />
+                    </label>
+                  </>
+                ) : null}
+                <button
+                  className="ghost-button"
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void ensureCart()
+                      .then((session) => {
+                        if (!session) {
+                          throw new Error("Cart session was not created.");
+                        }
+
+                        return updateStorefrontCartFulfillment(session.cart.id, {
+                          accessToken: session.access.accessToken,
+                          fulfillment: {
+                            mode: fulfillmentMode,
+                            zoneCode: fulfillmentMode === "DELIVERY" ? zoneCode || null : null,
+                            addressLine1: fulfillmentMode === "DELIVERY" ? addressLine1 || null : null,
+                            postalCode: fulfillmentMode === "DELIVERY" ? postalCode || null : null,
+                            pickupSlotLabel:
+                              fulfillmentMode === "PICKUP" ? pickupSlotLabel || null : null,
+                            tableCode: fulfillmentMode === "DINE_IN" ? tableCode || null : null,
+                            guestCount:
+                              fulfillmentMode === "DINE_IN" && guestCount.trim()
+                                ? Number(guestCount)
+                                : null,
+                            instructions: note || null
+                          }
+                        });
+                      })
+                      .then((updated) => {
+                        setCartSession(updated);
+                        setMessage(
+                          `Fulfillment updated: ${updated.cart.fulfillment.mode ?? fulfillmentMode}.`
+                        );
+                        setError(null);
+                      })
+                      .catch((caughtError) =>
+                        setError(
+                          caughtError instanceof Error
+                            ? caughtError.message
+                            : "Fulfillment update failed."
+                        )
+                      )
+                      .finally(() => setBusy(false));
+                  }}
+                >
+                  Apply Fulfillment
+                </button>
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.68 }}>
+                  {cartSession?.cart.fulfillment.mode
+                    ? `Current: ${cartSession.cart.fulfillment.mode} · fee ${cartSession.cart.fulfillment.fee} · promised ${cartSession.cart.fulfillment.promisedAt ?? "n/a"}`
+                    : "Apply fulfillment before checkout to calculate fee and ETA/promise."}
+                </p>
+              </div>
               <strong>
                 Total: {cartSession?.cart.total ?? "0.00"} {bootstrap.catalog.localization.currency}
               </strong>
+              {cartSession?.cart.promotion ? (
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.68 }}>
+                  Promo {cartSession.cart.promotion.code} applied, discount{" "}
+                  {cartSession.cart.discountTotal} {bootstrap.catalog.localization.currency}
+                </p>
+              ) : null}
               <button
                 className="primary-button"
-                disabled={busy || !cartSession?.cart.items.length}
+                disabled={busy || !cartSession?.cart.items.length || !cartSession?.cart.fulfillment.mode}
                 onClick={() => {
                   if (!cartSession) {
                     return;
@@ -472,13 +708,38 @@ export default function StorefrontPage({
                   <h2 style={{ margin: 0 }}>Customer history</h2>
                 </div>
                 {customerOrders.map((order) => (
-                  <button
-                    key={order.orderId}
-                    className="ghost-button"
-                    onClick={() => router.push(order.tracking.trackingPath)}
-                  >
-                    {order.number} · {order.status} · {order.total}
-                  </button>
+                  <div key={order.orderId} style={{ display: "grid", gap: 8 }}>
+                    <button className="ghost-button" onClick={() => router.push(order.tracking.trackingPath)}>
+                      {order.number} · {order.status} · {order.total}
+                    </button>
+                    {order.canRepeatOrder ? (
+                      <button
+                        className="mini-button"
+                        onClick={() => {
+                          if (!customerSessionTokenFromQuery) {
+                            return;
+                          }
+                          setBusy(true);
+                          void repeatStorefrontCustomerOrder(order.orderId, customerSessionTokenFromQuery)
+                            .then((session) => {
+                              setCartSession(session);
+                              setMessage(`Repeat order started from ${order.number}.`);
+                              setError(null);
+                            })
+                            .catch((caughtError) =>
+                              setError(
+                                caughtError instanceof Error
+                                  ? caughtError.message
+                                  : "Repeat order failed."
+                              )
+                            )
+                            .finally(() => setBusy(false));
+                        }}
+                      >
+                        Repeat Order
+                      </button>
+                    ) : null}
+                  </div>
                 ))}
               </section>
             ) : null}

@@ -2,7 +2,7 @@
 
 Exetron is a multi-tenant SaaS platform for offline business automation. This
 repository implements the baseline `PHASE 0 -> PHASE 10` plan and active
-post-baseline work through `PHASE 13` from
+post-baseline work through `PHASE 15` from
 `roadmap_task_ai_master_spec`.
 
 ## Workspace
@@ -31,6 +31,8 @@ Current implemented scope includes:
 - PHASE 11 product maturity: signed kiosk access tokens, platform-admin onboarding bootstrap, encrypted provider-config secrets handling, observability boundary, and analytics precompute basics
 - PHASE 12 globalization foundation: localization service, locale precedence, country profiles, localized catalog content, language-pack import/export, and localized template rendering
 - PHASE 13 online commerce channel: public storefront bootstrap, guest/customer carts and checkout, QR ordering links, signed tracking access, and customer notification hooks
+- PHASE 14 fulfillment depth: delivery zones and fees, pickup and dine-in selection, dispatch board, courier assignment, ETA/promised time updates, and fulfillment status tracking
+- PHASE 15 customer growth layer: customer profiles, loyalty balances and ledger, promotion campaigns, retention/segment hooks, and storefront repeat-order flow
 
 ## Quick Start
 
@@ -98,8 +100,27 @@ Storefront runtime now provides:
 - public bootstrap via `GET /storefront/bootstrap`
 - guest and customer session flows over the existing commerce core
 - public cart and checkout for the `DELIVERY` channel
+- required fulfillment selection before checkout with delivery/pickup/dine-in support
+- public promotion apply via `PATCH /storefront/carts/:id/promotion`
+- customer profile and active promotion summary in bootstrap for signed customer sessions
+- repeat-order bootstrap via `POST /storefront/customer-sessions/orders/:id/repeat`
 - protected QR link issuance via `POST /storefront/qr-links`
 - signed order tracking access and customer order history lookup
+
+For customer growth administration, use:
+- `/customers`
+- `GET /customers/profiles`
+- `POST /customers/profiles/:id/loyalty/adjust`
+- `GET|POST|PATCH /customers/promotions`
+
+For fulfillment operations, use:
+- `/fulfillment`
+- `GET /fulfillment/config`
+- `PUT /fulfillment/config/store`
+- `GET /fulfillment/dispatch-board`
+- `POST /fulfillment/orders/:id/assignment`
+- `POST /fulfillment/orders/:id/eta`
+- `POST /fulfillment/orders/:id/status`
 
 For production hardening and probes, use:
 - `/health`

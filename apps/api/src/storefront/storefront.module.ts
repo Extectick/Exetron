@@ -21,9 +21,11 @@ import {
 } from "@nestjs/swagger";
 import type {
   AddStorefrontCartItemRequest,
+  ApplyStorefrontPromotionRequest,
   CreateStorefrontCartRequest,
   CreateStorefrontCustomerSessionRequest,
   CreateStorefrontQrLinkRequest,
+  FulfillmentSelectionDto,
   ListResponse,
   StorefrontBootstrapResponse,
   StorefrontCartSessionDto,
@@ -35,6 +37,7 @@ import type {
   StorefrontQrLinkDto,
   StorefrontQrResolutionDto,
   UpdateStorefrontCartItemRequest,
+  UpdateStorefrontCartFulfillmentRequest,
   UpdateStorefrontCartRequest
 } from "@exetron/contracts";
 import type { ApiEnv } from "@exetron/config";
@@ -45,10 +48,12 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
-  Min
+  Min,
+  ValidateNested
 } from "class-validator";
 import { Type } from "class-transformer";
 import { APP_ENV } from "../common/app-env.provider";
@@ -56,8 +61,10 @@ import { AccessControlService } from "../common/access-control.service";
 import { CurrentContext } from "../common/decorators/current-context.decorator";
 import { Permissions } from "../common/decorators/permissions.decorator";
 import { Public } from "../common/decorators/public.decorator";
+import { CustomersModule, CustomersService } from "../customers/customers.module";
 import { DatabaseContextService } from "../database/database-context.service";
 import { PrismaService } from "../database/prisma.service";
+import { FulfillmentModule, FulfillmentService } from "../fulfillment/fulfillment.module";
 import { OrdersModule, OrdersService } from "../orders/orders.module";
 import { PaymentsModule, PaymentsService } from "../payments/payments.module";
 import { PricingModule, PricingService } from "../pricing/pricing.module";
@@ -299,6 +306,95 @@ class StorefrontCheckoutDto implements StorefrontCheckoutRequest {
   paymentMethod!: PaymentMethodKind;
 }
 
+class StorefrontFulfillmentSelectionDto {
+  @ApiProperty({ enum: ["DELIVERY", "PICKUP", "DINE_IN"] })
+  @IsIn(["DELIVERY", "PICKUP", "DINE_IN"])
+  mode!: "DELIVERY" | "PICKUP" | "DINE_IN";
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  zoneCode?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  addressLine1?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  addressLine2?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  postalCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  contactless?: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  pickupSlotLabel?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  tableCode?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  guestCount?: number | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  instructions?: string | null;
+}
+
+class UpdateStorefrontCartFulfillmentDto {
+  @ApiProperty()
+  @IsString()
+  accessToken!: string;
+
+  @ApiProperty({ type: StorefrontFulfillmentSelectionDto })
+  @IsObject()
+  @ValidateNested()
+  @Type(() => StorefrontFulfillmentSelectionDto)
+  fulfillment!: StorefrontFulfillmentSelectionDto;
+}
+
+class ApplyStorefrontPromotionDto implements ApplyStorefrontPromotionRequest {
+  @ApiProperty()
+  @IsString()
+  accessToken!: string;
+
+  @ApiProperty()
+  @IsString()
+  code!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  customerSessionToken?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  customerName?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  customerPhone?: string | null;
+}
+
 class CreateStorefrontQrLinkDto implements CreateStorefrontQrLinkRequest {
   @ApiPropertyOptional({ format: "uuid" })
   @IsOptional()
@@ -347,9 +443,11 @@ class StorefrontService {
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService,
     private readonly customizationService: CustomizationService,
+    private readonly fulfillmentService: FulfillmentService,
     private readonly pricingService: PricingService,
     private readonly ordersService: OrdersService,
-    private readonly paymentsService: PaymentsService
+    private readonly paymentsService: PaymentsService,
+    private readonly customersService: CustomersService
   ) {}
 
   async bootstrap(query: StorefrontBootstrapQueryDto): Promise<StorefrontBootstrapResponse> {
@@ -379,6 +477,20 @@ class StorefrontService {
       locale: query.locale,
       customerLocale: query.locale
     });
+    const [customerProfile, availablePromotions] = await Promise.all([
+      customerSession?.customerPhone
+        ? this.customersService.getPublicCustomerProfile(
+            store.tenantId,
+            store.id,
+            customerSession.customerPhone
+          )
+        : Promise.resolve(null),
+      this.customersService.listPublicAvailablePromotions(
+        store.tenantId,
+        store.id,
+        customerSession?.customerPhone ?? null
+      )
+    ]);
 
     return {
       tenantId: store.tenantId,
@@ -392,7 +504,10 @@ class StorefrontService {
       rules: resolveStorefrontRules(
         asRecord(customization.settings["storefront.rules"]) ?? null
       ),
+      fulfillment: await this.fulfillmentService.getPublicStoreConfig(store.id),
       catalog,
+      customerProfile,
+      availablePromotions,
       customerSession: customerSession
         ? {
             mode: "CUSTOMER",
@@ -562,6 +677,86 @@ class StorefrontService {
     };
   }
 
+  async updateFulfillment(
+    cartId: string,
+    dto: UpdateStorefrontCartFulfillmentDto
+  ): Promise<StorefrontCartSessionDto> {
+    const claims = await this.verifyCartAccessToken(cartId, dto.accessToken);
+    const store = await this.loadPublicStoreById(claims.storeId);
+    const context = buildPublicContext(store, claims.customerPhone);
+    await this.fulfillmentService.applyCartFulfillment(context, cartId, {
+      mode: dto.fulfillment.mode,
+      zoneCode: dto.fulfillment.zoneCode ?? null,
+      addressLine1: dto.fulfillment.addressLine1 ?? null,
+      addressLine2: dto.fulfillment.addressLine2 ?? null,
+      postalCode: dto.fulfillment.postalCode ?? null,
+      contactless: dto.fulfillment.contactless === true,
+      pickupSlotLabel: dto.fulfillment.pickupSlotLabel ?? null,
+      tableCode: dto.fulfillment.tableCode ?? null,
+      guestCount: dto.fulfillment.guestCount ?? null,
+      instructions: dto.fulfillment.instructions ?? null
+    });
+    const cart = await this.ordersService.getCart(context, cartId);
+
+    return {
+      cart,
+      access: {
+        cartId,
+        accessToken: dto.accessToken,
+        expiresAt: new Date(Date.now() + STOREFRONT_CART_ACCESS_TOKEN_TTL_MS).toISOString()
+      },
+      customerSession:
+        claims.mode === "CUSTOMER" && claims.customerPhone
+          ? {
+              mode: "CUSTOMER",
+              customerName: cart.customerName,
+              customerPhone: claims.customerPhone
+            }
+          : null
+    };
+  }
+
+  async applyPromotion(
+    cartId: string,
+    dto: ApplyStorefrontPromotionDto
+  ): Promise<StorefrontCartSessionDto> {
+    const claims = await this.verifyCartAccessToken(cartId, dto.accessToken);
+    const store = await this.loadPublicStoreById(claims.storeId);
+    const customerSession = dto.customerSessionToken?.trim()
+      ? await this.verifyCustomerSessionToken(dto.customerSessionToken, store)
+      : null;
+    const context = buildPublicContext(
+      store,
+      customerSession?.customerPhone ?? claims.customerPhone ?? dto.customerPhone ?? null
+    );
+    const cart = await this.customersService.applyPromotionToCart(context, {
+      cartId,
+      code: dto.code,
+      customerName: dto.customerName ?? customerSession?.customerName ?? null,
+      customerPhone:
+        dto.customerPhone ?? customerSession?.customerPhone ?? claims.customerPhone ?? null
+    });
+
+    return {
+      cart,
+      access: {
+        cartId,
+        accessToken: dto.accessToken,
+        expiresAt: new Date(Date.now() + STOREFRONT_CART_ACCESS_TOKEN_TTL_MS).toISOString()
+      },
+      customerSession:
+        claims.mode === "CUSTOMER" && (customerSession?.customerPhone ?? claims.customerPhone)
+          ? {
+              mode: "CUSTOMER",
+              customerName:
+                customerSession?.customerName ?? dto.customerName ?? cart.customerName,
+              customerPhone:
+                customerSession?.customerPhone ?? claims.customerPhone ?? dto.customerPhone ?? ""
+            }
+          : null
+    };
+  }
+
   async addItem(
     cartId: string,
     dto: StorefrontCartItemDto
@@ -698,6 +893,11 @@ class StorefrontService {
       throw new BadRequestException("Notes are disabled for this storefront.");
     }
 
+    const cart = await this.ordersService.getCart(context, cartId);
+    if (!cart.fulfillment.mode) {
+      throw new BadRequestException("Fulfillment selection is required before checkout.");
+    }
+
     const order = await this.ordersService.checkout(context, cartId, {
       customerName: dto.customerName ?? customerSession?.customerName ?? null,
       customerPhone:
@@ -735,8 +935,14 @@ class StorefrontService {
           })
         : await this.ordersService.getOrder(context, order.id);
 
+    const finalOrder =
+      processedIntent.status === "COMPLETED"
+        ? (await this.customersService.finalizeOrderGrowth(context, order.id),
+          await this.ordersService.getOrder(context, order.id))
+        : orderAfterPayment;
+
     return {
-      order: orderAfterPayment,
+      order: finalOrder,
       paymentIntent: processedIntent,
       tracking: await this.issueOrderTrackingToken({
         orderId: order.id,
@@ -775,6 +981,7 @@ class StorefrontService {
         status: order.status,
         total: order.total.toFixed(2),
         placedAt: order.placedAt.toISOString(),
+        canRepeatOrder: order.status !== "CANCELLED",
         tracking: await this.issueOrderTrackingToken({
           orderId: order.id,
           tenantId: order.tenantId,
@@ -788,6 +995,38 @@ class StorefrontService {
     return {
       items,
       total: items.length
+    };
+  }
+
+  async repeatCustomerOrder(
+    orderId: string,
+    accessToken: string
+  ): Promise<StorefrontCartSessionDto> {
+    const claims = await this.verifyCustomerSessionTokenLoose(accessToken);
+    const store = await this.loadPublicStoreById(claims.storeId);
+    const context = buildPublicContext(store, claims.customerPhone);
+    const cart = await this.customersService.repeatCustomerOrder(context, {
+      orderId,
+      customerPhone: claims.customerPhone,
+      customerName: claims.customerName
+    });
+    const access = await this.issueCartAccessToken({
+      cartId: cart.id,
+      tenantId: store.tenantId,
+      storeId: store.id,
+      pointKey: null,
+      customerPhone: claims.customerPhone,
+      mode: "CUSTOMER"
+    });
+
+    return {
+      cart,
+      access,
+      customerSession: {
+        mode: "CUSTOMER",
+        customerName: claims.customerName,
+        customerPhone: claims.customerPhone
+      }
     };
   }
 
@@ -805,6 +1044,7 @@ class StorefrontService {
 
     return {
       order,
+      fulfillment: order.fulfillment,
       events: events.items,
       notifications: events.items
         .filter((event) => event.type === "storefront.notification_queued")
@@ -1065,6 +1305,15 @@ class StorefrontController {
     return this.storefrontService.listCustomerOrders(query.accessToken);
   }
 
+  @Post("customer-sessions/orders/:id/repeat")
+  @Public()
+  repeatCustomerOrder(
+    @Param() params: StorefrontIdParamDto,
+    @Query() query: StorefrontAccessQueryDto
+  ): Promise<StorefrontCartSessionDto> {
+    return this.storefrontService.repeatCustomerOrder(params.id, query.accessToken);
+  }
+
   @Post("carts")
   @Public()
   createCart(@Body() dto: CreateStorefrontCartDto): Promise<StorefrontCartSessionDto> {
@@ -1116,6 +1365,24 @@ class StorefrontController {
     return this.storefrontService.deleteItem(params.id, params.itemId, query.accessToken);
   }
 
+  @Patch("carts/:id/fulfillment")
+  @Public()
+  updateFulfillment(
+    @Param() params: StorefrontIdParamDto,
+    @Body() dto: UpdateStorefrontCartFulfillmentDto
+  ): Promise<StorefrontCartSessionDto> {
+    return this.storefrontService.updateFulfillment(params.id, dto);
+  }
+
+  @Patch("carts/:id/promotion")
+  @Public()
+  applyPromotion(
+    @Param() params: StorefrontIdParamDto,
+    @Body() dto: ApplyStorefrontPromotionDto
+  ): Promise<StorefrontCartSessionDto> {
+    return this.storefrontService.applyPromotion(params.id, dto);
+  }
+
   @Post("carts/:id/checkout")
   @Public()
   checkout(
@@ -1151,7 +1418,15 @@ class StorefrontController {
 }
 
 @Module({
-  imports: [JwtModule.register({}), CustomizationModule, PricingModule, OrdersModule, PaymentsModule],
+  imports: [
+    JwtModule.register({}),
+    CustomizationModule,
+    CustomersModule,
+    FulfillmentModule,
+    PricingModule,
+    OrdersModule,
+    PaymentsModule
+  ],
   controllers: [StorefrontController],
   providers: [StorefrontService],
   exports: [StorefrontService]

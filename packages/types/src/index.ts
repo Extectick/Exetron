@@ -51,6 +51,18 @@ export type OrderStatus = (typeof orderStatuses)[number];
 export const refundStatuses = ["NONE", "NOT_REQUIRED", "PENDING_MANUAL"] as const;
 export type RefundStatus = (typeof refundStatuses)[number];
 
+export const customerProfileStatuses = ["ACTIVE", "MERGED", "ARCHIVED"] as const;
+export type CustomerProfileStatus = (typeof customerProfileStatuses)[number];
+
+export const loyaltyLedgerEntryKinds = ["EARN", "REDEEM", "ADJUST"] as const;
+export type LoyaltyLedgerEntryKind = (typeof loyaltyLedgerEntryKinds)[number];
+
+export const promotionStatuses = ["ACTIVE", "PAUSED", "ARCHIVED"] as const;
+export type PromotionStatus = (typeof promotionStatuses)[number];
+
+export const promotionTypes = ["PERCENTAGE", "FIXED_AMOUNT", "LOYALTY_REDEEM"] as const;
+export type PromotionType = (typeof promotionTypes)[number];
+
 export const posShiftStatuses = ["OPEN", "CLOSED"] as const;
 export type PosShiftStatus = (typeof posShiftStatuses)[number];
 
@@ -59,6 +71,22 @@ export type PosSessionStatus = (typeof posSessionStatuses)[number];
 
 export const paymentMethodKinds = ["CASH", "CARD", "QR"] as const;
 export type PaymentMethodKind = (typeof paymentMethodKinds)[number];
+
+export const fulfillmentModes = ["DELIVERY", "PICKUP", "DINE_IN"] as const;
+export type FulfillmentMode = (typeof fulfillmentModes)[number];
+
+export const fulfillmentStatuses = [
+  "PENDING",
+  "SCHEDULED",
+  "PREPARING",
+  "READY_FOR_PICKUP",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "PICKED_UP",
+  "TABLE_ASSIGNED",
+  "SERVED"
+] as const;
+export type FulfillmentStatus = (typeof fulfillmentStatuses)[number];
 
 export const paymentIntentStatuses = [
   "PENDING",

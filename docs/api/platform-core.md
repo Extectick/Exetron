@@ -36,17 +36,33 @@
 - `GET /analytics/owner-cabinet`
 - `GET|POST /analytics/snapshots`
 - `POST /analytics/precompute`
+- `GET /customers/profiles`
+- `GET /customers/profiles/:id`
+- `GET /customers/profiles/:id/loyalty`
+- `POST /customers/profiles/:id/loyalty/adjust`
+- `GET|POST /customers/promotions`
+- `PATCH /customers/promotions/:id`
 - `GET /storefront/bootstrap`
 - `POST /storefront/customer-sessions`
 - `GET /storefront/customer-sessions/orders`
+- `POST /storefront/customer-sessions/orders/:id/repeat`
 - `POST /storefront/carts`
 - `GET|PATCH /storefront/carts/:id`
+- `PATCH /storefront/carts/:id/fulfillment`
+- `PATCH /storefront/carts/:id/promotion`
 - `POST /storefront/carts/:id/items`
 - `PATCH|DELETE /storefront/carts/:id/items/:itemId`
 - `POST /storefront/carts/:id/checkout`
 - `GET /storefront/orders/:id/tracking`
 - `POST /storefront/qr-links`
 - `GET /storefront/qr/:token`
+- `GET /fulfillment/config`
+- `PUT /fulfillment/config/store`
+- `GET /fulfillment/dispatch-board`
+- `GET /fulfillment/orders/:id`
+- `POST /fulfillment/orders/:id/assignment`
+- `POST /fulfillment/orders/:id/eta`
+- `POST /fulfillment/orders/:id/status`
 - `GET /health`
 - `GET /health/live`
 - `GET /health/readiness`
@@ -84,3 +100,15 @@
   instead of creating a parallel storefront-only order lifecycle.
 - Customer-facing status updates are surfaced through `GET /storefront/orders/:id/tracking`
   and are derived from canonical order events plus queued storefront notification events.
+- PHASE 14 adds `PATCH /storefront/carts/:id/fulfillment` so public carts can resolve
+  delivery fees, pickup promises, or dine-in table assignment before checkout.
+- Fulfillment operator APIs stay protected and work on top of the existing order
+  runtime: config is store-scoped, while assignment/ETA/status updates append new
+  fulfillment events and update the current order fulfillment snapshot.
+- PHASE 15 adds tenant-scoped customer profiles, loyalty ledger/accounts, protected
+  promotion management APIs, and public storefront endpoints for promotion apply
+  plus repeat-order bootstrapping.
+- `GET /storefront/bootstrap` now optionally returns public customer growth context
+  (`customerProfile`, `availablePromotions`) for signed customer sessions, while
+  order checkout can attach `customerProfileId`, `discountTotal`, and applied
+  promotion snapshot onto canonical cart/order DTOs.

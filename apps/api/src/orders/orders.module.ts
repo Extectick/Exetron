@@ -29,7 +29,7 @@ import type {
   UpdateCartItemRequest,
   UpdateCartRequest
 } from "@exetron/contracts";
-import type { Prisma } from "@exetron/database";
+import { Prisma } from "@exetron/database";
 import type { OrderChannel, OrderStatus, RequestContext } from "@exetron/types";
 import { randomUUID } from "node:crypto";
 import {
@@ -58,6 +58,7 @@ import {
   resolveKitchenStationKey
 } from "../kitchen/kitchen-runtime.util";
 import { PricingModule, PricingService } from "../pricing/pricing.module";
+import { mapFulfillmentSnapshot } from "../fulfillment/fulfillment-runtime.util";
 import {
   calculateCartTotals,
   calculateLineTotals
@@ -299,11 +300,43 @@ function mapCartItem(item: LoadedCart["items"][number]): CartItemDto {
   };
 }
 
+function mapAppliedPromotion(
+  value: Prisma.JsonValue | null,
+  discountTotal: Prisma.Decimal
+): {
+  code: string;
+  name: string;
+  type: "PERCENTAGE" | "FIXED_AMOUNT" | "LOYALTY_REDEEM";
+  discountTotal: string;
+  pointsCost: number | null;
+} | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return {
+    code: typeof value.code === "string" ? value.code : "PROMO",
+    name: typeof value.name === "string" ? value.name : "Promotion",
+    type:
+      value.type === "PERCENTAGE" ||
+      value.type === "FIXED_AMOUNT" ||
+      value.type === "LOYALTY_REDEEM"
+        ? value.type
+        : "FIXED_AMOUNT",
+    discountTotal:
+      typeof value.discountTotal === "string"
+        ? value.discountTotal
+        : decimalToString(discountTotal) ?? "0.00",
+    pointsCost: typeof value.pointsCost === "number" ? value.pointsCost : null
+  };
+}
+
 function mapCart(cart: LoadedCart): CartDto {
   return {
     id: cart.id,
     tenantId: cart.tenantId,
     storeId: cart.storeId,
+    customerProfileId: cart.customerProfileId,
     channel: cart.channel,
     status: cart.status,
     customerName: cart.customerName,
@@ -311,7 +344,18 @@ function mapCart(cart: LoadedCart): CartDto {
     note: cart.note,
     subtotal: decimalToString(cart.subtotal) ?? "0.00",
     modifierTotal: decimalToString(cart.modifierTotal) ?? "0.00",
+    fulfillmentFee: decimalToString(cart.fulfillmentFee) ?? "0.00",
+    discountTotal: decimalToString(cart.discountTotal) ?? "0.00",
     total: decimalToString(cart.total) ?? "0.00",
+    promotion: mapAppliedPromotion(cart.promotionSnapshot, cart.discountTotal),
+    fulfillment: mapFulfillmentSnapshot({
+      mode: cart.fulfillmentMode,
+      status: cart.fulfillmentStatus,
+      fee: decimalToString(cart.fulfillmentFee),
+      promisedAt: cart.promisedAt,
+      etaAt: cart.etaAt,
+      payload: cart.fulfillmentPayload
+    }),
     deviceId: cart.deviceId,
     createdByUserId: cart.createdByUserId,
     createdAt: cart.createdAt.toISOString(),
@@ -348,6 +392,7 @@ function mapOrder(order: LoadedOrder): OrderDto {
     tenantId: order.tenantId,
     storeId: order.storeId,
     cartId: order.cartId,
+    customerProfileId: order.customerProfileId,
     number: order.number,
     channel: order.channel,
     status: order.status,
@@ -357,7 +402,18 @@ function mapOrder(order: LoadedOrder): OrderDto {
     note: order.note,
     subtotal: decimalToString(order.subtotal) ?? "0.00",
     modifierTotal: decimalToString(order.modifierTotal) ?? "0.00",
+    fulfillmentFee: decimalToString(order.fulfillmentFee) ?? "0.00",
+    discountTotal: decimalToString(order.discountTotal) ?? "0.00",
     total: decimalToString(order.total) ?? "0.00",
+    promotion: mapAppliedPromotion(order.promotionSnapshot, order.discountTotal),
+    fulfillment: mapFulfillmentSnapshot({
+      mode: order.fulfillmentMode,
+      status: order.fulfillmentStatus,
+      fee: decimalToString(order.fulfillmentFee),
+      promisedAt: order.promisedAt,
+      etaAt: order.etaAt,
+      payload: order.fulfillmentPayload
+    }),
     cancelReason: order.cancelReason,
     deviceId: order.deviceId,
     createdByUserId: order.createdByUserId,
@@ -531,10 +587,18 @@ export class OrdersService {
       this.ensureCartOpen(cart);
       this.accessControl.resolveTenantId(context, cart.tenantId);
       this.accessControl.enforceStoreAccess(context, cart.storeId);
+      const shouldResetPromotion =
+        dto.customerPhone !== undefined &&
+        (dto.customerPhone ?? null) !== (cart.customerPhone ?? null);
+
+      if (shouldResetPromotion) {
+        await this.clearCartPromotionTx(tx, cart.id);
+      }
 
       const updatedCart = await tx.cart.update({
         where: { id: cart.id },
         data: {
+          ...(shouldResetPromotion ? { customerProfileId: null } : {}),
           ...(dto.customerName !== undefined ? { customerName: dto.customerName } : {}),
           ...(dto.customerPhone !== undefined ? { customerPhone: dto.customerPhone } : {}),
           ...(dto.note !== undefined ? { note: dto.note } : {})
@@ -550,6 +614,10 @@ export class OrdersService {
           }
         }
       });
+
+      if (shouldResetPromotion) {
+        await this.recalculateCartTotals(tx, cart.id);
+      }
 
       await this.audit.recordTx(tx, {
         tenantId: updatedCart.tenantId,
@@ -626,6 +694,7 @@ export class OrdersService {
         }
       });
 
+      await this.clearCartPromotionTx(tx, cart.id);
       await this.recalculateCartTotals(tx, cart.id);
       const updatedCart = await this.loadCart(tx, cart.id);
 
@@ -720,6 +789,7 @@ export class OrdersService {
         }
       });
 
+      await this.clearCartPromotionTx(tx, cart.id);
       await this.recalculateCartTotals(tx, cart.id);
       const updatedCart = await this.loadCart(tx, cart.id);
 
@@ -772,6 +842,7 @@ export class OrdersService {
         where: { id: itemId }
       });
 
+      await this.clearCartPromotionTx(tx, cart.id);
       await this.recalculateCartTotals(tx, cart.id);
       const updatedCart = await this.loadCart(tx, cart.id);
 
@@ -823,6 +894,7 @@ export class OrdersService {
           tenantId: cart.tenantId,
           storeId: cart.storeId,
           cartId: cart.id,
+          customerProfileId: cart.customerProfileId,
           number: this.generateOrderNumber(),
           channel: cart.channel,
           status: "PLACED",
@@ -832,7 +904,18 @@ export class OrdersService {
           note: dto.note ?? cart.note,
           subtotal: cart.subtotal,
           modifierTotal: cart.modifierTotal,
+          fulfillmentFee: cart.fulfillmentFee,
+          discountTotal: cart.discountTotal,
           total: cart.total,
+          promotionCode: cart.promotionCode,
+          promotionSnapshot:
+            (cart.promotionSnapshot as Prisma.InputJsonValue | undefined) ?? undefined,
+          fulfillmentMode: cart.fulfillmentMode,
+          fulfillmentStatus: cart.fulfillmentStatus,
+          fulfillmentPayload:
+            (cart.fulfillmentPayload as Prisma.InputJsonValue | undefined) ?? undefined,
+          promisedAt: cart.promisedAt,
+          etaAt: cart.etaAt,
           placedAt: new Date(),
           deviceId: cart.deviceId,
           createdByUserId: cart.createdByUserId,
@@ -872,9 +955,11 @@ export class OrdersService {
         where: { id: cart.id },
         data: {
           status: "CONVERTED",
+          customerProfileId: order.customerProfileId,
           customerName: order.customerName,
           customerPhone: order.customerPhone,
-          note: order.note
+          note: order.note,
+          fulfillmentStatus: order.fulfillmentStatus
         }
       });
 
@@ -887,7 +972,11 @@ export class OrdersService {
           orderId: order.id,
           cartId: cart.id,
           status: order.status,
-          total: decimalToString(order.total)
+          total: decimalToString(order.total),
+          fulfillmentMode: order.fulfillmentMode,
+          fulfillmentStatus: order.fulfillmentStatus,
+          promisedAt: order.promisedAt?.toISOString() ?? null,
+          etaAt: order.etaAt?.toISOString() ?? null
         }
       });
 
@@ -902,7 +991,9 @@ export class OrdersService {
         payload: {
           cartId: cart.id,
           number: order.number,
-          total: decimalToString(order.total)
+          total: decimalToString(order.total),
+          fulfillmentMode: order.fulfillmentMode,
+          fulfillmentStatus: order.fulfillmentStatus
         }
       });
 
@@ -915,7 +1006,9 @@ export class OrdersService {
           orderId: order.id,
           cartId: cart.id,
           status: order.status,
-          total: decimalToString(order.total)
+          total: decimalToString(order.total),
+          fulfillmentMode: order.fulfillmentMode,
+          fulfillmentStatus: order.fulfillmentStatus
         }
       });
 
@@ -1390,13 +1483,24 @@ export class OrdersService {
         modifierTotal: true
       }
     });
+    const cart = await tx.cart.findUniqueOrThrow({
+      where: { id: cartId },
+      select: {
+        fulfillmentFee: true,
+        discountTotal: true
+      }
+    });
 
     const totals = calculateCartTotals(
       items.map((item) => ({
         quantity: item.quantity,
         unitBasePrice: decimalToString(item.unitBasePrice),
         modifierTotal: decimalToString(item.modifierTotal) ?? "0.00"
-      }))
+      })),
+      {
+        fulfillmentFee: decimalToString(cart.fulfillmentFee),
+        discountTotal: decimalToString(cart.discountTotal)
+      }
     );
 
     await tx.cart.update({
@@ -1404,7 +1508,22 @@ export class OrdersService {
       data: {
         subtotal: totals.subtotal,
         modifierTotal: totals.modifierTotal,
+        discountTotal: totals.discountTotal,
         total: totals.total
+      }
+    });
+  }
+
+  private async clearCartPromotionTx(
+    tx: Prisma.TransactionClient,
+    cartId: string
+  ): Promise<void> {
+    await tx.cart.update({
+      where: { id: cartId },
+      data: {
+        discountTotal: "0.00",
+        promotionCode: null,
+        promotionSnapshot: Prisma.DbNull
       }
     });
   }

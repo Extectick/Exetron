@@ -80,3 +80,31 @@
 - public online channel требует security boundary сильнее, чем raw ids/query params, но не оправдывает отдельную session table or public identity store в рамках PHASE 13;
 - stateless tokens переиспользуют existing JWT secret model и позволяют безопасно открыть guest, QR и tracking flows без новой persistence surface;
 - event-backed notification artifacts отделяют customer update contract от будущих real outbound providers и не зашивают delivery side effects в synchronous checkout path.
+
+## ADR-037 — Fulfillment Extends Existing Cart And Order Snapshots Instead Of Creating A Parallel Aggregate
+Принято: PHASE 14 добавляет fulfillment как snapshot fields на `Cart` и `Order` (`mode`, `fee`, payload, promised time, ETA, fulfillment status) и продолжает писать operational changes в existing `OrderEvent`/outbox pipeline, а не вводит новый fulfillment aggregate с отдельной таблицей состояния на этой фазе.
+Причина:
+- delivery fees должны участвовать в cart/order totals и payment amounts, поэтому fulfillment не может жить только как sidecar event without canonical snapshot;
+- текущей фазе нужна operational depth для delivery/pickup/dine-in, но не нужна новая domain boundary с собственной консистентностью и cross-aggregate coordination;
+- snapshot + events дает достаточно данных для storefront tracking, dispatch board и later analytics без разрушения existing order lifecycle.
+
+## ADR-038 — Store Fulfillment Config Stays Settings-Backed And Provider-Agnostic In PHASE 14
+Принято: delivery zones, pickup windows, dine-in tables и manual provider extension points хранятся как store-scoped settings-backed config (`fulfillment.config`), а operator actions остаются protected APIs with event-backed updates вместо реальной courier/provider integration.
+Причина:
+- PHASE 14 должен сначала зафиксировать runtime contract для fees, ETA/SLA, dispatch и customer tracking, не расползаясь в отдельные zone/table/provider tables before proven write pressure;
+- settings-backed config already matches tenant/store isolation, audit and AI-driven iteration speed for this wave;
+- provider-agnostic extension points оставляют место для later delivery/fiscal/payment integrations, но не заставляют сейчас выбирать premature storage or integration model.
+
+## ADR-039 — Customer Identity Stays Separate From Staff Identity And Uses A Tenant-Scoped Growth Model
+Принято: `PHASE 15` не расширяет existing `User`/RBAC model до customer CRM. Customer growth вводится отдельным доменом `CustomerProfile` с tenant-scoped normalized phone ownership, `LoyaltyAccount` и append-only `LoyaltyLedgerEntry`.
+Причина:
+- staff users и end customers имеют разный lifecycle, permission model и privacy surface; объединение их в одну identity table быстро размоет boundary между operations и CRM;
+- storefront уже использует customer phone/session semantics, поэтому tenant-scoped customer profile легче встраивается в existing online commerce runtime без переделки auth/RBAC layers;
+- отдельный loyalty account + ledger дает idempotent earn/redeem/adjust contract, пригодный для later billing, subscriptions or partner integrations, не делая checkout зависимым от staff identity semantics.
+
+## ADR-040 — Promotions Materialize As Explicit Cart And Order Snapshots, Not Hidden Dynamic Pricing State
+Принято: promotions в `PHASE 15` применяются к открытому cart и materialize как `discountTotal`, `promotionCode` и `promotionSnapshot` на `Cart`/`Order`; pricing-affecting cart mutations и fulfillment recalculation сбрасывают applied promo вместо неявного auto-recompute.
+Причина:
+- checkout, payments, analytics и customer loyalty должны видеть тот же discount artifact, что видел customer/operator в момент оформления, а не пересчитывать его постфактум against evolving promotion state;
+- explicit snapshot keeps promotions compatible with existing order/payment primitives and makes repeat-order, tracking and auditing deterministic;
+- reset-on-mutation policy проще и безопаснее для текущей фазы, чем early introduction of a full promotion rule engine with precedence over catalog pricing, customization and fulfillment fees.

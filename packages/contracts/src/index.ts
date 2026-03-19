@@ -4,12 +4,16 @@ import type {
   AvailabilityTargetType,
   CartStatus,
   CatalogTargetType,
+  CustomerProfileStatus,
   CustomizationChannel,
   CustomizationRuleStatus,
   DeviceKind,
+  FulfillmentMode,
+  FulfillmentStatus,
   JwtClaims,
   KitchenBoardStatus,
   KioskPaymentHandoffStatus,
+  LoyaltyLedgerEntryKind,
   PaymentAllocationStatus,
   PaymentAttemptStatus,
   KitchenTicketStatus,
@@ -21,6 +25,8 @@ import type {
   PaymentProviderType,
   PaginationResult,
   PriceSource,
+  PromotionStatus,
+  PromotionType,
   PosSessionStatus,
   PosShiftStatus,
   RefundStatus
@@ -595,10 +601,100 @@ export interface CartItemDto {
   }>;
 }
 
+export interface LoyaltyAccountDto {
+  pointsBalance: number;
+  totalEarnedPoints: number;
+  totalRedeemedPoints: number;
+  tierKey: string | null;
+  updatedAt: string | null;
+}
+
+export interface CustomerRetentionStateDto {
+  action: "WELCOME" | "NURTURE" | "WINBACK";
+  templateKey: string;
+  recommendedAt: string;
+}
+
+export interface CustomerProfileDto {
+  id: string;
+  tenantId: string;
+  preferredStoreId: string | null;
+  fullName: string | null;
+  phone: string;
+  status: CustomerProfileStatus;
+  orderCount: number;
+  completedOrderCount: number;
+  totalSpent: string;
+  lastOrderAt: string | null;
+  lastSeenAt: string | null;
+  segments: string[];
+  loyalty: LoyaltyAccountDto | null;
+  retention: CustomerRetentionStateDto | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerPublicProfileDto {
+  id: string;
+  customerName: string | null;
+  customerPhone: string;
+  orderCount: number;
+  totalSpent: string;
+  lastOrderAt: string | null;
+  segments: string[];
+  loyalty: LoyaltyAccountDto | null;
+  retention: CustomerRetentionStateDto | null;
+}
+
+export interface LoyaltyLedgerEntryDto {
+  id: string;
+  tenantId: string;
+  customerProfileId: string;
+  loyaltyAccountId: string;
+  orderId: string | null;
+  entryKind: LoyaltyLedgerEntryKind;
+  points: number;
+  amount: string | null;
+  description: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface PromotionCampaignDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  code: string;
+  name: string;
+  status: PromotionStatus;
+  type: PromotionType;
+  value: string;
+  minimumOrderTotal: string;
+  maxDiscountAmount: string | null;
+  pointsCost: number | null;
+  segmentKeys: string[];
+  usageLimit: number | null;
+  usedCount: number;
+  activeFrom: string | null;
+  activeTo: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppliedPromotionDto {
+  code: string;
+  name: string;
+  type: PromotionType;
+  discountTotal: string;
+  pointsCost: number | null;
+}
+
 export interface CartDto {
   id: string;
   tenantId: string;
   storeId: string;
+  customerProfileId: string | null;
   channel: OrderChannel;
   status: CartStatus;
   customerName: string | null;
@@ -606,7 +702,11 @@ export interface CartDto {
   note: string | null;
   subtotal: string;
   modifierTotal: string;
+  fulfillmentFee: string;
+  discountTotal: string;
   total: string;
+  promotion: AppliedPromotionDto | null;
+  fulfillment: FulfillmentSnapshotDto;
   deviceId: string | null;
   createdByUserId: string | null;
   createdAt: string;
@@ -639,6 +739,7 @@ export interface OrderDto {
   tenantId: string;
   storeId: string;
   cartId: string | null;
+  customerProfileId: string | null;
   number: string;
   channel: OrderChannel;
   status: OrderStatus;
@@ -648,7 +749,11 @@ export interface OrderDto {
   note: string | null;
   subtotal: string;
   modifierTotal: string;
+  fulfillmentFee: string;
+  discountTotal: string;
   total: string;
+  promotion: AppliedPromotionDto | null;
+  fulfillment: FulfillmentSnapshotDto;
   cancelReason: string | null;
   deviceId: string | null;
   createdByUserId: string | null;
@@ -949,6 +1054,80 @@ export interface StorefrontRulesDto {
   allowedPaymentMethods: PaymentMethodKind[];
 }
 
+export interface DeliveryZoneDto {
+  code: string;
+  name: string;
+  postalCodes: string[];
+  fee: string;
+  etaMinMinutes: number;
+  etaMaxMinutes: number;
+  slaMinutes: number;
+  isActive: boolean;
+}
+
+export interface PickupConfigDto {
+  enabled: boolean;
+  leadTimeMinutes: number;
+  promisedWindowMinutes: number;
+  instructions: string | null;
+}
+
+export interface DineInTableDto {
+  code: string;
+  label: string;
+  capacity: number;
+  isActive: boolean;
+}
+
+export interface DineInConfigDto {
+  enabled: boolean;
+  leadTimeMinutes: number;
+  tables: DineInTableDto[];
+}
+
+export interface FulfillmentProviderExtensionDto {
+  providerKey: string;
+  providerType: "MANUAL" | "EXTERNAL_PLACEHOLDER";
+  enabled: boolean;
+}
+
+export interface StoreFulfillmentConfigDto {
+  storeId: string;
+  enabledModes: FulfillmentMode[];
+  defaultMode: FulfillmentMode;
+  deliveryZones: DeliveryZoneDto[];
+  pickup: PickupConfigDto;
+  dineIn: DineInConfigDto;
+  providers: FulfillmentProviderExtensionDto[];
+}
+
+export interface FulfillmentSelectionDto {
+  mode: FulfillmentMode;
+  zoneCode: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  postalCode: string | null;
+  contactless: boolean;
+  pickupSlotLabel: string | null;
+  tableCode: string | null;
+  guestCount: number | null;
+  instructions: string | null;
+}
+
+export interface FulfillmentSnapshotDto {
+  mode: FulfillmentMode | null;
+  status: FulfillmentStatus | null;
+  fee: string;
+  promisedAt: string | null;
+  etaAt: string | null;
+  details: FulfillmentSelectionDto | null;
+  courier: {
+    courierName: string | null;
+    courierPhone: string | null;
+    courierExternalId: string | null;
+  } | null;
+}
+
 export interface StorefrontCustomerSessionStateDto {
   mode: "CUSTOMER";
   customerName: string | null;
@@ -1003,8 +1182,11 @@ export interface StorefrontBootstrapResponse {
   pointKey: string | null;
   branding: StorefrontBrandingDto;
   rules: StorefrontRulesDto;
+  fulfillment: StoreFulfillmentConfigDto;
   catalog: CompiledCatalogResponse;
   customerSession: StorefrontCustomerSessionStateDto | null;
+  customerProfile: CustomerPublicProfileDto | null;
+  availablePromotions: PromotionCampaignDto[];
 }
 
 export interface StorefrontCartSessionDto {
@@ -1028,8 +1210,27 @@ export interface StorefrontTrackingNotificationDto {
 
 export interface StorefrontOrderTrackingResponse {
   order: OrderDto;
+  fulfillment: FulfillmentSnapshotDto;
   events: OrderEventDto[];
   notifications: StorefrontTrackingNotificationDto[];
+}
+
+export interface FulfillmentDispatchBoardItemDto {
+  orderId: string;
+  number: string;
+  storeId: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  orderStatus: OrderStatus;
+  fulfillment: FulfillmentSnapshotDto;
+  total: string;
+  placedAt: string;
+}
+
+export interface FulfillmentOrderProjectionDto {
+  order: OrderDto;
+  fulfillment: FulfillmentSnapshotDto;
+  events: OrderEventDto[];
 }
 
 export interface StorefrontCustomerOrderListItemDto {
@@ -1038,6 +1239,7 @@ export interface StorefrontCustomerOrderListItemDto {
   status: OrderStatus;
   total: string;
   placedAt: string;
+  canRepeatOrder: boolean;
   tracking: StorefrontOrderTrackingTokenDto;
 }
 
@@ -1614,11 +1816,90 @@ export interface StorefrontCheckoutRequest {
   paymentMethod: PaymentMethodKind;
 }
 
+export interface ApplyStorefrontPromotionRequest {
+  accessToken: string;
+  code: string;
+  customerSessionToken?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+}
+
+export interface UpdateStorefrontCartFulfillmentRequest {
+  accessToken: string;
+  fulfillment: FulfillmentSelectionDto;
+}
+
 export interface CreateStorefrontQrLinkRequest {
   tenantId?: string;
   storeId: string;
   pointKey?: string | null;
   locale?: string | null;
+}
+
+export interface UpdateStoreFulfillmentConfigRequest {
+  storeId: string;
+  enabledModes?: FulfillmentMode[];
+  defaultMode?: FulfillmentMode;
+  deliveryZones?: DeliveryZoneDto[];
+  pickup?: PickupConfigDto;
+  dineIn?: DineInConfigDto;
+  providers?: FulfillmentProviderExtensionDto[];
+}
+
+export interface AssignFulfillmentCourierRequest {
+  courierName: string;
+  courierPhone?: string | null;
+  courierExternalId?: string | null;
+}
+
+export interface UpdateFulfillmentEtaRequest {
+  etaAt?: string | null;
+  promisedAt?: string | null;
+}
+
+export interface UpdateFulfillmentStatusRequest {
+  status: FulfillmentStatus;
+  note?: string | null;
+}
+
+export interface CreatePromotionCampaignRequest {
+  tenantId: string;
+  storeId?: string | null;
+  code: string;
+  name: string;
+  status?: PromotionStatus;
+  type: PromotionType;
+  value: string;
+  minimumOrderTotal?: string;
+  maxDiscountAmount?: string | null;
+  pointsCost?: number | null;
+  segmentKeys?: string[];
+  usageLimit?: number | null;
+  activeFrom?: string | null;
+  activeTo?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface UpdatePromotionCampaignRequest {
+  storeId?: string | null;
+  code?: string;
+  name?: string;
+  status?: PromotionStatus;
+  type?: PromotionType;
+  value?: string;
+  minimumOrderTotal?: string;
+  maxDiscountAmount?: string | null;
+  pointsCost?: number | null;
+  segmentKeys?: string[];
+  usageLimit?: number | null;
+  activeFrom?: string | null;
+  activeTo?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AdjustCustomerLoyaltyRequest {
+  points: number;
+  description?: string | null;
 }
 
 export interface AdminNavItem {

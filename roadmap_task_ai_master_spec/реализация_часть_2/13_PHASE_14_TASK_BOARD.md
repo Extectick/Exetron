@@ -10,7 +10,7 @@
 Добавить fulfillment depth через delivery zones, delivery fees, pickup orchestration, dine-in/table logic, courier/operator workflows, ETA/SLA logic, promised time windows и fulfillment policies.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 13`
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить delivery zones and service area model
-- [ ] Определить pickup orchestration and dine-in/table entities
-- [ ] Определить courier/operator workflow states, ETA/SLA logic, promised time windows and fulfillment policies
+- [x] Определить delivery zones and service area model
+- [x] Определить pickup orchestration and dine-in/table entities
+- [x] Определить courier/operator workflow states, ETA/SLA logic, promised time windows and fulfillment policies
 
 ## Deliverables
 - delivery zone model
@@ -36,8 +36,8 @@
 - courier/operator, ETA/SLA, promised time windows and fulfillment policy model
 
 ## Acceptance
-- [ ] Delivery, pickup and dine-in modes имеют явные boundaries
-- [ ] Fulfillment policies не ломают existing order lifecycle consistency
+- [x] Delivery, pickup and dine-in modes имеют явные boundaries
+- [x] Fulfillment policies не ломают existing order lifecycle consistency
 
 ## Notes/Risks
 - риск смешать fulfillment concerns с PHASE 13 checkout scope
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить runtime resolution для delivery availability and fees
-- [ ] Определить pickup and table service orchestration contracts
-- [ ] Определить courier assignment and ETA update runtime
+- [x] Определить runtime resolution для delivery availability and fees
+- [x] Определить pickup and table service orchestration contracts
+- [x] Определить courier assignment and ETA update runtime
 
 ## Deliverables
 - delivery runtime contract
@@ -57,8 +57,8 @@
 - courier and ETA runtime contract
 
 ## Acceptance
-- [ ] Понятно, как fulfillment mode выбирается и исполняется
-- [ ] ETA/SLA updates укладываются в existing order event model
+- [x] Понятно, как fulfillment mode выбирается и исполняется
+- [x] ETA/SLA updates укладываются в existing order event model
 
 ## Notes/Risks
 - риск разнести fee logic по разным каналам
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить operator surfaces для dispatch and courier workflows
-- [ ] Определить customer-visible pickup and dine-in touchpoints
-- [ ] Определить table flow touchpoints for in-store channel
+- [x] Определить operator surfaces для dispatch and courier workflows
+- [x] Определить customer-visible pickup and dine-in touchpoints
+- [x] Определить table flow touchpoints for in-store channel
 
 ## Deliverables
 - dispatch/operator UI scope
@@ -78,8 +78,8 @@
 - table flow touchpoint list
 
 ## Acceptance
-- [ ] Понятны основные UI surfaces для operational teams
-- [ ] Table flow не создает отдельный detached channel model
+- [x] Понятны основные UI surfaces для operational teams
+- [x] Table flow не создает отдельный detached channel model
 
 ## Notes/Risks
 - риск преждевременно строить full courier app
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить async events для ETA updates and dispatch changes
-- [ ] Определить security boundaries для courier or operator actions
-- [ ] Определить external delivery provider extension points без фактической интеграции этой фазы
+- [x] Определить async events для ETA updates and dispatch changes
+- [x] Определить security boundaries для courier or operator actions
+- [x] Определить external delivery provider extension points без фактической интеграции этой фазы
 
 ## Deliverables
 - fulfillment async event map
@@ -99,8 +99,8 @@
 - delivery provider extension points
 
 ## Acceptance
-- [ ] Есть event-driven path для fulfillment updates
-- [ ] Security policy совместима с existing RBAC and device/user model
+- [x] Есть event-driven path для fulfillment updates
+- [x] Security policy совместима с existing RBAC and device/user model
 
 ## Notes/Risks
 - риск заложить интеграционные детали PHASE 16 раньше времени
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для delivery, pickup, dine-in, courier and ETA/SLA behavior
-- [ ] Обновить tracker после первых fulfillment deliverables
-- [ ] Добавить ADR при изменении core order lifecycle or operational state model
+- [x] Зафиксировать acceptance scenarios для delivery, pickup, dine-in, courier and ETA/SLA behavior
+- [x] Обновить tracker после первых fulfillment deliverables
+- [x] Добавить ADR при изменении core order lifecycle or operational state model
 
 ## Deliverables
 - fulfillment acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if needed
 
 ## Acceptance
-- [ ] Документы покрывают все PHASE 14 backlog items ровно в этой фазе
-- [ ] Реализация fulfillment layer может стартовать без скрытых предположений
+- [x] Документы покрывают все PHASE 14 backlog items ровно в этой фазе
+- [x] Реализация fulfillment layer может стартовать без скрытых предположений
 
 ## Notes/Risks
 - риск пропустить cancellation and exception flows
@@ -130,7 +130,12 @@
 ---
 
 ## Done
-- _пусто_
+- Добавлен `fulfillment` runtime с store-scoped config, dispatch board, courier assignment, ETA updates и fulfillment status transitions
+- Cart/Order model расширен fulfillment snapshot полями: `mode`, `fee`, payload, promised time, ETA и fulfillment status
+- Storefront checkout теперь требует fulfillment selection и умеет считать delivery fee через cart total до оплаты
+- Public tracking и operator projection показывают fulfillment state и courier metadata
+- Добавлена thin operator UI `/fulfillment` и расширен public storefront UI для delivery/pickup/dine-in selection
+- Добавлен e2e `phase14-fulfillment`, обновлены docs, tracker и ADR
 
 ## In Progress
 - _пусто_
@@ -139,15 +144,15 @@
 - _пусто_
 
 ## Next
-- Определить delivery zone model
-- Зафиксировать pickup and table flows
-- Определить courier/operator, ETA/SLA, promised time windows and fulfillment policy contracts
+- Перейти к `PHASE 15`
+- Не смешивать текущий fulfillment/session model с будущим CRM/loyalty profile domain
+- Сохранять provider extension points manual/event-backed до реальных payment/fiscal/provider integrations следующих фаз
 
 ## Phase Exit Summary
-- [ ] Delivery zones определены
-- [ ] Delivery fees определены
-- [ ] Pickup orchestration определена
-- [ ] Dine-in and table logic определены
-- [ ] Courier/operator workflows определены
-- [ ] ETA/SLA logic, promised time windows и fulfillment policies определены
-- [ ] Progress tracker обновлен
+- [x] Delivery zones определены
+- [x] Delivery fees определены
+- [x] Pickup orchestration определена
+- [x] Dine-in and table logic определены
+- [x] Courier/operator workflows определены
+- [x] ETA/SLA logic, promised time windows и fulfillment policies определены
+- [x] Progress tracker обновлен

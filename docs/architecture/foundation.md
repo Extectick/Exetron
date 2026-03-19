@@ -20,9 +20,11 @@
 - `pos` - POS bootstrap, shifts, sessions and payment compatibility wrapper
 - `payments` - payment intents, allocations, attempts, provider configs and reconciliation
 - `analytics` - owner cabinet aggregates, store comparison, top products and report snapshots
+- `customers` - customer profiles, loyalty ledger/accounts, promotion campaigns and repeat-order growth hooks
 - `customization` - branding configs, customization rules and effective channel/point evaluation
 - `localization` - locale resolution, country profiles, localized content, localized templates and language-pack handling
 - `storefront` - public online commerce channel with bootstrap, guest/customer carts, QR entry points and tracking
+- `fulfillment` - delivery zones and fees, pickup/dine-in orchestration, dispatch board and courier/ETA state updates
 - `observability` - structured logs, request ids, metrics and standardized error handling
 - `kitchen` - kitchen tickets, board feed and realtime operational updates
 - `kiosk` - signed public kiosk bootstrap and self-service checkout on top of the payments runtime
@@ -52,6 +54,7 @@ Core tables in `packages/database/prisma/schema.prisma`:
 - `PriceList`, `PriceListItem`, `StoreCatalogOverride`, `AvailabilityWindow`
 - `Cart`, `CartItem`, `CartItemModifier`
 - `Order`, `OrderItem`, `OrderItemModifier`, `OrderEvent`
+- `CustomerProfile`, `LoyaltyAccount`, `LoyaltyLedgerEntry`, `PromotionCampaign`
 - `PosShift`, `PosSession`, `PaymentIntent`, `PaymentAllocation`, `PaymentAttempt`, `PaymentProviderConfig`
 - `AnalyticsSnapshot`
 - `KitchenTicket`, `KitchenTicketItem`
@@ -101,6 +104,12 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 - Customer-facing progress updates are derived from canonical order transitions plus
   storefront-specific `storefront.status_hook_emitted` and
   `storefront.notification_queued` events written into the existing order event stream.
+- PHASE 14 extends carts and orders with a fulfillment snapshot (`mode`, `fee`,
+  payload, promised time, ETA and fulfillment status) so totals and tracking can
+  include delivery/pickup/dine-in state without forking the core order lifecycle.
+- PHASE 15 extends carts and orders with `customerProfileId`, `discountTotal`, and
+  applied promotion snapshot so customer growth mechanics stay attached to the
+  same canonical commerce primitives instead of spawning a parallel checkout flow.
 
 ## Kitchen And Board
 
@@ -186,11 +195,29 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 - Storefront bootstrap resolves branding and rules from the existing customization
   runtime and compiled catalog from the existing pricing/localization stack.
 - Guest checkout and customer session flows both reuse the same cart and order model;
-  PHASE 13 does not introduce CRM profiles or loyalty ownership yet.
+  PHASE 15 adds customer-profile projection, promotion apply, and repeat-order
+  flow on top of the same public runtime instead of forking a separate growth channel.
 - Public access is token-based and stateless: carts, customer sessions, QR entry
   links and tracking all use signed public tokens derived from the existing JWT secret.
 - Storefront notifications are modeled as queued event artifacts, not as direct
   external provider delivery in the checkout transaction.
+- Customer growth state stays tenant-scoped and separate from staff identities:
+  `CustomerProfile` is keyed by normalized phone, loyalty uses a ledger/account
+  model, and segmentation/retention remain event-backed artifacts.
+
+## Fulfillment
+
+- Store fulfillment config is store-scoped and currently stored as settings-backed
+  JSON under `fulfillment.config`.
+- Customer-facing fulfillment is applied to the cart before checkout and becomes part
+  of cart/order totals through `fulfillmentFee`.
+- Delivery zones provide fee, ETA and SLA defaults; pickup and dine-in provide
+  promised-time/table orchestration without creating detached order channels.
+- Operator dispatch updates mutate the current order fulfillment snapshot and append
+  `fulfillment.assignment_updated`, `fulfillment.eta_updated`, and
+  `fulfillment.status_updated` events into the existing `OrderEvent` and outbox flow.
+- PHASE 14 intentionally stops short of real external courier integrations; provider
+  slots exist only as extension points for later phases.
 
 ## Onboarding
 
