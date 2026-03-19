@@ -35,6 +35,7 @@ import type { Prisma } from "@exetron/database";
 import type {
   AvailabilityTargetType,
   CatalogTargetType,
+  CustomizationChannel,
   RequestContext
 } from "@exetron/types";
 import {
@@ -54,6 +55,10 @@ import { CurrentContext } from "../common/decorators/current-context.decorator";
 import { Permissions } from "../common/decorators/permissions.decorator";
 import { IdParamDto } from "../common/dto/id-param.dto";
 import { DatabaseContextService } from "../database/database-context.service";
+import {
+  LocalizationModule,
+  LocalizationService
+} from "../localization/localization.module";
 import {
   isCatalogEntryAvailable,
   resolveCurrentSlot
@@ -93,6 +98,26 @@ class CompiledCatalogQueryDto {
   @IsOptional()
   @IsUUID()
   priceListId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  locale?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customerLocale?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  countryCode?: string;
+
+  @ApiPropertyOptional({ enum: ["ADMIN", "POS", "KIOSK", "DELIVERY", "KITCHEN", "BOARD", "BACKOFFICE"] })
+  @IsOptional()
+  @IsIn(["ADMIN", "POS", "KIOSK", "DELIVERY", "KITCHEN", "BOARD", "BACKOFFICE"])
+  channel?: CustomizationChannel;
 }
 
 class PriceListItemPayloadDto implements UpsertPriceListItemRequest {
@@ -343,7 +368,8 @@ function mapStoreCatalogOverride(override: {
 export class PricingService {
   constructor(
     private readonly dbContext: DatabaseContextService,
-    private readonly accessControl: AccessControlService
+    private readonly accessControl: AccessControlService,
+    private readonly localization: LocalizationService
   ) {}
 
   listPriceLists(
@@ -560,6 +586,16 @@ export class PricingService {
         throw new BadRequestException("Price list tenant mismatch.");
       }
 
+      const localization = await this.localization.resolveContextTx(tx, context, {
+        tenantId: store.tenantId,
+        storeId: store.id,
+        locale: query.locale,
+        customerLocale: query.customerLocale,
+        countryCode: query.countryCode,
+        channel: query.channel ?? null,
+        currency: priceList?.currency ?? null
+      });
+
       const categories = await tx.category.findMany({
         where: {
           tenantId: store.tenantId,
@@ -601,6 +637,46 @@ export class PricingService {
           link.modifierGroup.options.map((option) => option.id)
         )
       );
+
+      const localizedContentMap = await this.localization.resolveLocalizedContentForTargetsTx(
+        tx,
+        store.tenantId,
+        [
+          ...categories.map((category) => ({
+            targetType: "CATEGORY" as const,
+            targetId: category.id
+          })),
+          ...products.map((product) => ({
+            targetType: "PRODUCT" as const,
+            targetId: product.id
+          })),
+          ...products.flatMap((product) =>
+            product.variants.map((variant) => ({
+              targetType: "VARIANT" as const,
+              targetId: variant.id
+            }))
+          ),
+          ...products.flatMap((product) =>
+            product.modifierGroupLinks.map((link) => ({
+              targetType: "MODIFIER_GROUP" as const,
+              targetId: link.modifierGroup.id
+            }))
+          ),
+          ...products.flatMap((product) =>
+            product.modifierGroupLinks.flatMap((link) =>
+              link.modifierGroup.options.map((option) => ({
+                targetType: "MODIFIER_OPTION" as const,
+                targetId: option.id
+              }))
+            )
+          )
+        ],
+        localization.localeChain
+      );
+      const localizedFieldsFor = (
+        targetType: "CATEGORY" | "PRODUCT" | "VARIANT" | "MODIFIER_GROUP" | "MODIFIER_OPTION",
+        targetId: string
+      ) => localizedContentMap.get(`${targetType}:${targetId}`)?.fields ?? {};
 
       const availabilityWindows = groupAvailabilityWindows(
         await tx.availabilityWindow.findMany({
@@ -654,7 +730,7 @@ export class PricingService {
             id: category.id,
             parentId: category.parentId,
             code: category.code,
-            name: category.name,
+            name: localizedFieldsFor("CATEGORY", category.id).name ?? category.name,
             sortOrder: category.sortOrder,
             products: [] as CompiledCatalogProductDto[]
           }
@@ -715,7 +791,7 @@ export class PricingService {
             return {
               id: variant.id,
               code: variant.code,
-              name: variant.name,
+              name: localizedFieldsFor("VARIANT", variant.id).name ?? variant.name,
               sku: variant.sku,
               barcode: variant.barcode,
               effectivePrice: resolvedVariantPrice.basePrice,
@@ -741,7 +817,9 @@ export class PricingService {
           .map((link) => ({
             id: link.modifierGroup.id,
             code: link.modifierGroup.code,
-            name: link.modifierGroup.name,
+            name:
+              localizedFieldsFor("MODIFIER_GROUP", link.modifierGroup.id).name ??
+              link.modifierGroup.name,
             selectionMode: link.modifierGroup.selectionMode,
             minSelection: link.modifierGroup.minSelection,
             maxSelection: link.modifierGroup.maxSelection,
@@ -759,7 +837,7 @@ export class PricingService {
                 return {
                   id: option.id,
                   code: option.code,
-                  name: option.name,
+                  name: localizedFieldsFor("MODIFIER_OPTION", option.id).name ?? option.name,
                   priceDelta:
                     decimalToString(optionOverride?.priceOverride) ??
                     decimalToString(optionPriceItem?.price) ??
@@ -773,8 +851,9 @@ export class PricingService {
           id: product.id,
           brandId: product.brandId,
           code: product.code,
-          name: product.name,
-          description: product.description,
+          name: localizedFieldsFor("PRODUCT", product.id).name ?? product.name,
+          description:
+            localizedFieldsFor("PRODUCT", product.id).description ?? product.description,
           effectivePrice: resolvedProductPrice.basePrice,
           priceSource: resolvedProductPrice.source,
           variants: compiledVariants,
@@ -799,6 +878,13 @@ export class PricingService {
         tenantId: store.tenantId,
         storeId: store.id,
         generatedAt: new Date().toISOString(),
+        localization: {
+          locale: localization.locale,
+          fallbackLocale: localization.fallbackLocale,
+          countryCode: localization.countryCode,
+          currency: localization.currency,
+          tax: localization.tax
+        },
         categories: compiledCategories,
         uncategorizedProducts
       };
@@ -1096,6 +1182,7 @@ class PricingController {
 }
 
 @Module({
+  imports: [LocalizationModule],
   controllers: [PricingController],
   providers: [PricingService],
   exports: [PricingService]

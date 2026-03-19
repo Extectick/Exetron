@@ -20,6 +20,7 @@ import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
 import { HealthController } from "./health.controller";
 import { KitchenModule } from "./kitchen/kitchen.module";
 import { KioskModule } from "./kiosk/kiosk.module";
+import { LocalizationModule } from "./localization/localization.module";
 import { ModifiersModule } from "./modifiers/modifiers.module";
 import { OnboardingModule } from "./onboarding/onboarding.module";
 import { OrdersModule } from "./orders/orders.module";
@@ -30,6 +31,7 @@ import { ProductsModule } from "./products/products.module";
 import { RolesModule } from "./roles/roles.module";
 import { SettingsModule } from "./settings/settings.module";
 import { StoresModule } from "./stores/stores.module";
+import { StorefrontModule } from "./storefront/storefront.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { UsersModule } from "./users/users.module";
 import { ObservabilityModule } from "./observability/observability.module";
@@ -52,6 +54,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     AnalyticsModule,
     AuditModule,
     OnboardingModule,
+    LocalizationModule,
     TenantsModule,
     BrandsModule,
     CategoriesModule,
@@ -64,6 +67,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     KioskModule,
     PosModule,
     StoresModule,
+    StorefrontModule,
     UsersModule,
     RolesModule,
     DevicesModule,

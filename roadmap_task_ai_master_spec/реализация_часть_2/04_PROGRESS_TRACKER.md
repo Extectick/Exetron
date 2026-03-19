@@ -2,10 +2,10 @@
 ## Статус post-baseline roadmap
 
 ## Current Phase
-- Current Phase: `PHASE 12`
+- Current Phase: `PHASE 14`
 
 ## Current Iteration Goal
-- Current Iteration Goal: `Начать PHASE 12: i18n/l10n boundary, localized content storage, currency/tax layer and country-aware contracts`
+- Current Iteration Goal: `Начать PHASE 14: fulfillment, delivery zones, pickup/dine-in flows поверх уже готового storefront online channel`
 
 ## Overall Progress
 - [x] Phase 0
@@ -20,8 +20,8 @@
 - [x] Phase 9
 - [x] Phase 10
 - [x] Phase 11
-- [ ] Phase 12
-- [ ] Phase 13
+- [x] Phase 12
+- [x] Phase 13
 - [ ] Phase 14
 - [ ] Phase 15
 - [ ] Phase 16
@@ -48,6 +48,18 @@
 - PHASE 11: observability получила exporter env contract, status endpoint `GET /health/observability` и exporter gauges в metrics
 - Для observability boundary добавлен `ADR-032`
 - PHASE 11 полностью завершен: regression e2e пройдены для `phase1-live`, `phase7-payments`, `phase8-analytics`, всех новых `phase11-*` сценариев
+- PHASE 12 завершен: добавлен centralized `localization` runtime на базе existing settings storage без новых schema forks
+- PHASE 12: tenant/store localization preferences, country profiles, localized content, localized templates и language-pack import/export получили typed API contracts и thin admin page `/localization`
+- PHASE 12: compiled catalog теперь использует locale resolution policy, localized content overlays и возвращает localization metadata с `locale`, `countryCode`, `currency` и `tax`
+- PHASE 12: добавлены synchronized template rendering, country compliance flags и formatting previews для money/date/address/phone
+- Для localization registry и locale precedence добавлены `ADR-033` и `ADR-034`
+- Проверки для PHASE 12 пройдены: API `typecheck`, Web `typecheck`, e2e `phase12-localization`, regression e2e `phase2-catalog`, `phase6-kiosk`
+- PHASE 13 завершен: добавлен public `storefront` runtime с bootstrap, guest/customer sessions, carts, checkout, QR ordering links и signed tracking access
+- PHASE 13: online commerce переиспользует existing commerce core и канал `DELIVERY`, без отдельного storefront-only order lifecycle
+- PHASE 13: customer status updates и notification queue artifacts пишутся в `OrderEvent` и outbox-backed domain events как `storefront.status_hook_emitted` и `storefront.notification_queued`
+- PHASE 13: добавлены public web pages `/storefront/[storeCode]` и `/order-tracking/[orderId]`
+- Для storefront runtime boundary и public token/event model добавлены `ADR-035` и `ADR-036`
+- Проверки для PHASE 13 пройдены: API `typecheck`, Web `typecheck`, e2e `phase13-storefront`, regression e2e `phase3-orders`, `phase6-kiosk`, `phase7-payments`
 
 ## In Progress
 - _пусто_
@@ -56,9 +68,9 @@
 - _пусто_
 
 ## Next
-- Начать `PHASE 12`
-- Зафиксировать i18n/l10n runtime boundary
-- Зафиксировать localized content and currency/tax contract
+- Начать `PHASE 14`
+- Зафиксировать delivery zones, pickup/dine-in и courier workflow boundary поверх `PHASE 13`
+- Не смешивать fulfillment policies `PHASE 14` с CRM/retention scope `PHASE 15`
 
 ## Decisions
 - Реализация идет в порядке `PHASE 11 -> PHASE 20`
@@ -69,6 +81,10 @@
 - Provider config secrets для текущей волны отделены от public settings, записываются как write-only encrypted envelope и не читаются обратно через CRUD API
 - Analytics precompute для текущей волны переиспользует `AnalyticsSnapshot` как artifact contract и остается inline-now with async-ready events
 - External observability для текущей волны зафиксирована как runtime/env boundary и status surface, а не как полный collector rollout
+- Localization registry для текущей волны переиспользует existing settings storage и не вводит отдельные таблицы до появления доказанной post-PHASE-12 write pressure
+- Locale resolution и country policy для текущей волны централизованы в одном localization service с deterministic precedence order и compiled catalog metadata
+- Public storefront для текущей волны переиспользует existing commerce core и канал `DELIVERY`, а не вводит отдельный storefront-only order domain
+- Public storefront access построен на signed public tokens для carts, customer sessions, QR entry links и tracking, а customer updates фиксируются как event artifacts до появления real delivery providers
 
 ## Tech Debt
 - для kiosk access token пока нет dedicated rotation UI; выдача идет через API endpoint
@@ -76,9 +92,15 @@
 - payment provider secrets пока шифруются application-level ключом из текущего API secret set; managed secret manager и независимая key rotation еще не внедрены
 - kiosk public runtime пока не имеет rate limiting для token-backed public traffic
 - observability export пока остается boundary/status-only without full external collector rollout
+- localization пока хранится поверх settings registry; dedicated translation tables и async sync pipeline еще не выделены
+- tax layer в PHASE 12 пока описывает country policy metadata и formatting context, но не меняет checkout math
+- existing web surfaces кроме `/localization` еще не переведены на собственный UI copy i18n runtime
+- storefront customer identity пока session-token based и не превращается в полноценный CRM/customer profile domain до `PHASE 15`
+- storefront notifications пока существуют как queued event artifacts и tracking payloads; реальный outbound dispatcher/provider layer еще не реализован
+- storefront public traffic пока не имеет dedicated rate-limiting/abuse controls beyond signed token boundary
 - payments runtime пока симулирует providers
 - analytics precompute пока выполняется inline в API процессе; отдельный queue/worker orchestration еще не выделен
-- localization, billing, inventory and enterprise layers пока отсутствуют как полноценные домены
+- billing, inventory and enterprise layers пока отсутствуют как полноценные домены
 
 ## Cross-Phase Risks
 - риск смешения scope между adjacent phases, особенно `13/14/15/16`
@@ -88,6 +110,10 @@
 - риск перегрузить одну фазу задачами следующей волны
 - риск перепутать текущий platform-admin onboarding bootstrap с будущим self-onboarding из monetization/billing waves
 - риск принять temporary encrypted envelope за финальную замену external secret management
+- риск расширить PHASE 12 localization templates до storefront notifications и customer messaging раньше PHASE 13/15
+- риск начать решать country-specific commerce behavior вне централизованного country policy layer
+- риск перетащить delivery/pickup/dine-in fulfillment логику из `PHASE 14` прямо в базовый storefront contract `PHASE 13`
+- риск принять session-token customer model за финальную customer identity модель до `PHASE 15`
 
 ## Completed Work Summary
 - `PHASE 0`: foundation, architecture, monorepo, environment setup
@@ -101,3 +127,6 @@
 - `PHASE 8`: owner analytics and cabinet
 - `PHASE 9`: customization layer, branding configs, rules executor
 - `PHASE 10`: hardening, structured logs, request ids, readiness, metrics, CI/CD gates
+- `PHASE 11`: product maturity, onboarding bootstrap, kiosk hardening, secrets boundary, observability, analytics precompute
+- `PHASE 12`: localization service, locale precedence, country profiles, localized catalog content, language packs, localized template foundation
+- `PHASE 13`: public storefront, guest/customer online checkout, QR ordering links, tracking tokens, and notification event hooks

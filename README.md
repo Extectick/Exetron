@@ -1,13 +1,14 @@
 # Exetron
 
 Exetron is a multi-tenant SaaS platform for offline business automation. This
-repository implements the `PHASE 0 -> PHASE 10` plan from
+repository implements the baseline `PHASE 0 -> PHASE 10` plan and active
+post-baseline work through `PHASE 13` from
 `roadmap_task_ai_master_spec`.
 
 ## Workspace
 
 - `apps/api` - NestJS modular monolith and platform core REST API
-- `apps/web` - Next.js admin control plane, owner cabinet, payment admin pages, and public kiosk UI
+- `apps/web` - Next.js admin control plane, owner cabinet, payment admin pages, public kiosk UI, and public storefront/tracking pages
 - `apps/mobile` - Expo POS runtime with offline-lite cache, queue replay, and payment processing
 - `packages/config` - shared environment contracts
 - `packages/contracts` - shared DTO and API shapes
@@ -28,6 +29,8 @@ Current implemented scope includes:
 - PHASE 9 customization: branding configs, customization rules, effective evaluation, and channel/point-specific behavior
 - PHASE 10 hardening: structured logs, request ids, readiness/metrics endpoints, CI/CD gates, and production ops docs
 - PHASE 11 product maturity: signed kiosk access tokens, platform-admin onboarding bootstrap, encrypted provider-config secrets handling, observability boundary, and analytics precompute basics
+- PHASE 12 globalization foundation: localization service, locale precedence, country profiles, localized catalog content, language-pack import/export, and localized template rendering
+- PHASE 13 online commerce channel: public storefront bootstrap, guest/customer carts and checkout, QR ordering links, signed tracking access, and customer notification hooks
 
 ## Quick Start
 
@@ -84,6 +87,20 @@ to choose `LIVE`, `PREFER_SNAPSHOT`, or `SNAPSHOT_ONLY`.
 For customization management, use:
 - `/customization`
 
+For localization management, use:
+- `/localization`
+
+For public storefront runtime, use:
+- `/storefront/<storeCode>`
+- `/order-tracking/<orderId>?token=<storefrontTrackingToken>`
+
+Storefront runtime now provides:
+- public bootstrap via `GET /storefront/bootstrap`
+- guest and customer session flows over the existing commerce core
+- public cart and checkout for the `DELIVERY` channel
+- protected QR link issuance via `POST /storefront/qr-links`
+- signed order tracking access and customer order history lookup
+
 For production hardening and probes, use:
 - `/health`
 - `/health/live`
@@ -96,3 +113,9 @@ Operational docs:
 - `docs/operations/migration-safety-checklist.md`
 - `docs/operations/performance-review.md`
 - `docs/operations/security-hardening.md`
+
+Localization runtime now provides:
+- tenant/store localization preferences
+- country profiles with currency, tax metadata, and compliance flags
+- localized content overlays for compiled catalog reads
+- localized templates with synchronous render preview and language-pack export/import

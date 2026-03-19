@@ -10,7 +10,7 @@
 Подготовить платформу к языкам, локалям, валютам, налогам, country profiles и localized templates без форков логики по странам.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 11` product maturity outputs
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить i18n infrastructure and locale-aware domain primitives
-- [ ] Определить multilingual content storage rules для catalog and branded content
-- [ ] Определить currency abstraction, tax layer и country profiles
+- [x] Определить i18n infrastructure and locale-aware domain primitives
+- [x] Определить multilingual content storage rules для catalog and branded content
+- [x] Определить currency abstraction, tax layer и country profiles
 
 ## Deliverables
 - locale primitives contract
@@ -36,8 +36,8 @@
 - currency/tax/country profile model
 
 ## Acceptance
-- [ ] Locale and language contracts едины для всех каналов
-- [ ] Country-aware data model не требует tenant-specific schema forks
+- [x] Locale and language contracts едины для всех каналов
+- [x] Country-aware data model не требует tenant-specific schema forks
 
 ## Notes/Risks
 - риск смешать translation storage и customization rules
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить locale resolution policy для tenant, store, channel and customer context
-- [ ] Определить API contract для localized reads and writes
-- [ ] Определить formatting rules для money, date, address and phone outputs
+- [x] Определить locale resolution policy для tenant, store, channel and customer context
+- [x] Определить API contract для localized reads and writes
+- [x] Определить formatting rules для money, date, address and phone outputs
 
 ## Deliverables
 - locale resolution policy
@@ -57,8 +57,8 @@
 - locale-aware formatting contract
 
 ## Acceptance
-- [ ] Есть единый precedence order для locale resolution
-- [ ] Localized API contract совместим с existing catalog and settings runtime
+- [x] Есть единый precedence order для locale resolution
+- [x] Localized API contract совместим с existing catalog and settings runtime
 
 ## Notes/Risks
 - риск локального решения только для web admin
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить i18n requirements для web, mobile and device UIs
-- [ ] Определить editor requirements для multilingual catalog/content management
-- [ ] Определить localized templates usage points
+- [x] Определить i18n requirements для web, mobile and device UIs
+- [x] Определить editor requirements для multilingual catalog/content management
+- [x] Определить localized templates usage points
 
 ## Deliverables
 - channel i18n requirements
@@ -78,8 +78,8 @@
 - template usage matrix
 
 ## Acceptance
-- [ ] Понятен минимальный UI scope для multilingual management
-- [ ] Localized templates охватывают только эту фазу и не смешиваются с PHASE 13 notifications logic
+- [x] Понятен минимальный UI scope для multilingual management
+- [x] Localized templates охватывают только эту фазу и не смешиваются с PHASE 13 notifications logic
 
 ## Notes/Risks
 - риск начать строить storefront copy rules раньше PHASE 13
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить import/export boundary для language packs
-- [ ] Определить compliance flags storage на уровне country profile
-- [ ] Определить async needs для localized template generation or sync
+- [x] Определить import/export boundary для language packs
+- [x] Определить compliance flags storage на уровне country profile
+- [x] Определить async needs для localized template generation or sync
 
 ## Deliverables
 - language pack handling policy
@@ -99,8 +99,8 @@
 - async localization boundary
 
 ## Acceptance
-- [ ] Country-level compliance flags отделены от runtime business hacks
-- [ ] Понятно, где нужен async flow, а где достаточно synchronous resolution
+- [x] Country-level compliance flags отделены от runtime business hacks
+- [x] Понятно, где нужен async flow, а где достаточно synchronous resolution
 
 ## Notes/Risks
 - риск превратить country profiles в свалку региональных исключений
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для locale, currency, tax and country profile behavior
-- [ ] Обновить tracker и phase status при первых deliverables
-- [ ] Добавить ADR при изменении domain primitives or localization precedence
+- [x] Зафиксировать acceptance scenarios для locale, currency, tax and country profile behavior
+- [x] Обновить tracker и phase status при первых deliverables
+- [x] Добавить ADR при изменении domain primitives or localization precedence
 
 ## Deliverables
 - localization acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if strategic localization decision appears
 
 ## Acceptance
-- [ ] Документы задают глобализацию как platform capability, а не UI patch
-- [ ] Реализация может стартовать без скрытых решений по locale precedence
+- [x] Документы задают глобализацию как platform capability, а не UI patch
+- [x] Реализация может стартовать без скрытых решений по locale precedence
 
 ## Notes/Risks
 - риск не проверить fallback behavior and missing translation cases
@@ -130,7 +130,14 @@
 ---
 
 ## Done
-- _пусто_
+- Добавлен `apps/api/src/localization/localization.module.ts` с centralized locale resolution service и precedence `query locale -> customer locale -> store channel locale -> store default -> tenant channel locale -> tenant default -> country profile -> fallback`
+- Localization registry реализован поверх existing `TenantSetting`/`StoreSetting` keys без новых schema forks: preferences, country profiles, localized content и localized templates
+- Добавлены API endpoints для preferences, country profiles, content, templates, localization context, language-pack export/import и template rendering
+- `GET /catalog/compiled` теперь умеет locale-aware overlays для category/product/variant/modifier option names и product descriptions, а также возвращает localization metadata
+- POS и kiosk bootstrap catalog reads теперь явно передают channel context (`POS`, `KIOSK`) в compiled catalog resolution
+- В web admin добавлена страница `/localization` и nav entry `Localization` для JSON-first управления preferences, country profiles, content, templates, context preview и language packs
+- Добавлен e2e `apps/api/test/phase12-localization.e2e-spec.ts`, проверяющий locale precedence, localized compiled catalog, language-pack roundtrip и template rendering
+- Обновлены root docs, platform docs, tracker и ADR log (`ADR-033`, `ADR-034`)
 
 ## In Progress
 - _пусто_
@@ -139,14 +146,14 @@
 - _пусто_
 
 ## Next
-- Определить locale primitives and resolution policy
-- Зафиксировать localized content model
-- Определить currency/tax/country profile boundaries
+- Начать `PHASE 13`
+- Расширить localized templates foundation на storefront/customer messaging только через explicit `PHASE 13+` contracts
+- Не тащить tax/compliance metadata в checkout math без отдельной billing/commerce фазы
 
 ## Phase Exit Summary
-- [ ] I18n infrastructure определена
-- [ ] Localized content storage правила зафиксированы
-- [ ] Currency and tax layer определены
-- [ ] Country profiles и compliance flags определены
-- [ ] Localized templates contract определен
-- [ ] Progress tracker обновлен
+- [x] I18n infrastructure определена
+- [x] Localized content storage правила зафиксированы
+- [x] Currency and tax layer определены
+- [x] Country profiles и compliance flags определены
+- [x] Localized templates contract определен
+- [x] Progress tracker обновлен

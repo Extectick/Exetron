@@ -193,7 +193,8 @@ class KioskService {
 
     const catalog = await this.pricingService.compiledCatalog(context, {
       tenantId: device.tenantId,
-      storeId: device.storeId
+      storeId: device.storeId,
+      channel: "KIOSK"
     });
 
     return {

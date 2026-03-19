@@ -22,6 +22,7 @@ export const adminNavigation: AdminNavItem[] = [
   { href: "/kitchen", label: "Kitchen" },
   { href: "/order-board", label: "Order Board" },
   { href: "/settings", label: "Settings" },
+  { href: "/localization", label: "Localization" },
   { href: "/feature-flags", label: "Feature Flags" },
   { href: "/customization", label: "Customization" },
   { href: "/audit", label: "Audit Trail" }

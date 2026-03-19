@@ -10,7 +10,7 @@
 Открыть полноценный online commerce channel через storefront, public catalog, customer cart/checkout, guest and customer flows, QR ordering, order tracking и notifications.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 11` and `PHASE 12`
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить storefront and public catalog domain boundaries
-- [ ] Определить customer identity and guest checkout model
-- [ ] Определить order tracking and customer notification entities
+- [x] Определить storefront and public catalog domain boundaries
+- [x] Определить customer identity and guest checkout model
+- [x] Определить order tracking and customer notification entities
 
 ## Deliverables
 - storefront domain map
@@ -36,8 +36,8 @@
 - tracking and notification model
 
 ## Acceptance
-- [ ] Public online channel reuse existing commerce core without domain fork
-- [ ] Customer and guest modes имеют явные lifecycle and ownership rules
+- [x] Public online channel reuse existing commerce core without domain fork
+- [x] Customer and guest modes имеют явные lifecycle and ownership rules
 
 ## Notes/Risks
 - риск дублировать kiosk flow вместо customer-facing online domain
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить storefront bootstrap and public catalog runtime
-- [ ] Определить customer cart and checkout API path
-- [ ] Определить QR ordering and order tracking runtime contracts
+- [x] Определить storefront bootstrap and public catalog runtime
+- [x] Определить customer cart and checkout API path
+- [x] Определить QR ordering and order tracking runtime contracts
 
 ## Deliverables
 - storefront runtime contract
@@ -57,8 +57,8 @@
 - QR ordering and tracking contracts
 
 ## Acceptance
-- [ ] Понятен runtime path от public catalog до placed order
-- [ ] QR ordering не создает отдельный order lifecycle
+- [x] Понятен runtime path от public catalog до placed order
+- [x] QR ordering не создает отдельный order lifecycle
 
 ## Notes/Risks
 - риск разнести checkout logic между online and kiosk implementations
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить storefront screens and navigation
-- [ ] Определить guest and customer checkout UX states
-- [ ] Определить order tracking and notification touchpoints
+- [x] Определить storefront screens and navigation
+- [x] Определить guest and customer checkout UX states
+- [x] Определить order tracking and notification touchpoints
 
 ## Deliverables
 - storefront UI scope
@@ -78,8 +78,8 @@
 - tracking and notification touchpoint map
 
 ## Acceptance
-- [ ] Понятен минимальный customer-facing UI surface
-- [ ] Tracking and notification touchpoints связаны с defined runtime events
+- [x] Понятен минимальный customer-facing UI surface
+- [x] Tracking and notification touchpoints связаны с defined runtime events
 
 ## Notes/Risks
 - риск начать delivery UX раньше PHASE 14
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить async boundary для customer notifications
-- [ ] Определить public channel security rules
-- [ ] Определить webhook or event hooks for customer order status updates
+- [x] Определить async boundary для customer notifications
+- [x] Определить public channel security rules
+- [x] Определить webhook or event hooks for customer order status updates
 
 ## Deliverables
 - notification async boundary
@@ -99,8 +99,8 @@
 - customer status event hook contract
 
 ## Acceptance
-- [ ] Notification delivery path не ломает existing order ownership and audit rules
-- [ ] Public channel security rules совместимы с prior hardening decisions
+- [x] Notification delivery path не ломает existing order ownership and audit rules
+- [x] Public channel security rules совместимы с prior hardening decisions
 
 ## Notes/Risks
 - риск зашить notifications прямо в synchronous checkout response
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для storefront, guest checkout, customer checkout, QR ordering, tracking and notifications
-- [ ] Обновить tracker после первых online commerce deliverables
-- [ ] Добавить ADR при изменении customer identity or public runtime boundary
+- [x] Зафиксировать acceptance scenarios для storefront, guest checkout, customer checkout, QR ordering, tracking and notifications
+- [x] Обновить tracker после первых online commerce deliverables
+- [x] Добавить ADR при изменении customer identity or public runtime boundary
 
 ## Deliverables
 - online commerce acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if needed
 
 ## Acceptance
-- [ ] Все backlog items PHASE 13 покрыты документами без смешения с PHASE 14 or PHASE 15
-- [ ] Реализация online channel может стартовать из task board напрямую
+- [x] Все backlog items PHASE 13 покрыты документами без смешения с PHASE 14 or PHASE 15
+- [x] Реализация online channel может стартовать из task board напрямую
 
 ## Notes/Risks
 - риск пропустить guest edge cases and anonymous order ownership
@@ -130,7 +130,12 @@
 ---
 
 ## Done
-- _пусто_
+- Добавлен `storefront` API module с public bootstrap, customer sessions, carts, checkout, QR links и tracking
+- Реализованы signed public access tokens для cart access, customer sessions, QR links и tracking
+- Public online flow переиспользует existing compiled catalog, customization, orders и payments runtime на канале `DELIVERY`
+- Добавлены public web surfaces `/storefront/[storeCode]` и `/order-tracking/[orderId]`
+- Customer notifications и status hooks фиксируются через `OrderEvent` и outbox-backed domain events
+- Добавлен e2e `phase13-storefront` и обновлены contracts/docs/ADR/tracker
 
 ## In Progress
 - _пусто_
@@ -139,14 +144,14 @@
 - _пусто_
 
 ## Next
-- Зафиксировать storefront domain boundaries
-- Определить guest/customer model
-- Описать runtime path public catalog -> cart -> checkout -> tracking
+- Перейти к `PHASE 14`
+- Расширить online commerce domain в delivery/pickup/fulfillment directions без fork storefront core
+- Не смешивать текущий public storefront scope с CRM/loyalty задачами `PHASE 15`
 
 ## Phase Exit Summary
-- [ ] Storefront module scope определен
-- [ ] Public catalog contract определен
-- [ ] Customer cart and checkout path определен
-- [ ] Guest and customer flows определены
-- [ ] QR ordering, tracking and notifications определены
-- [ ] Progress tracker обновлен
+- [x] Storefront module scope определен
+- [x] Public catalog contract определен
+- [x] Customer cart and checkout path определен
+- [x] Guest and customer flows определены
+- [x] QR ordering, tracking and notifications определены
+- [x] Progress tracker обновлен

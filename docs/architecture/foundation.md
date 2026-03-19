@@ -21,6 +21,8 @@
 - `payments` - payment intents, allocations, attempts, provider configs and reconciliation
 - `analytics` - owner cabinet aggregates, store comparison, top products and report snapshots
 - `customization` - branding configs, customization rules and effective channel/point evaluation
+- `localization` - locale resolution, country profiles, localized content, localized templates and language-pack handling
+- `storefront` - public online commerce channel with bootstrap, guest/customer carts, QR entry points and tracking
 - `observability` - structured logs, request ids, metrics and standardized error handling
 - `kitchen` - kitchen tickets, board feed and realtime operational updates
 - `kiosk` - signed public kiosk bootstrap and self-service checkout on top of the payments runtime
@@ -42,6 +44,7 @@ Core tables in `packages/database/prisma/schema.prisma`:
 - `User`, `Role`, `Permission`, `UserRole`, `UserStoreAccess`
 - `Device`, `RefreshSession`
 - `TenantSetting`, `StoreSetting`, `FeatureFlag`
+- localization registry keys inside `TenantSetting` and `StoreSetting`
 - `CustomizationBrandingConfig`, `CustomizationRule`
 - `AuditLog`, `OutboxEvent`
 - `Category`, `Product`, `ProductVariant`
@@ -69,10 +72,15 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 
 - Catalog compilation is exposed as `GET /catalog/compiled`.
 - Price resolution is exposed as `POST /pricing/preview`.
+- Localization overlays are applied during catalog compilation using centralized
+  locale resolution and settings-backed localized content entries.
 - Availability windows use explicit `targetType + targetId` instead of conditional
   foreign keys, and are resolved in the application layer.
 - Pricing precedence is deterministic: store override -> price list -> variant
   base -> product base, then modifier deltas are added on top.
+- Compiled catalog responses now include localization metadata (`locale`,
+  `fallbackLocale`, `countryCode`, `currency`, `tax`) so channels can keep
+  pricing math and country/formatting context separate.
 
 ## Orders Core
 
@@ -87,6 +95,12 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
   -> COMPLETED`, with `CANCELLED` as terminal.
 - Kitchen handoff in Phase 3 is event-only via `order.kitchen_handoff_requested`;
   Phase 5 adds persistent kitchen tickets and board feed on top of that contract.
+- PHASE 13 public storefront reuses the same cart/order primitives and currently maps
+  online commerce onto the existing `DELIVERY` channel rather than introducing a new
+  parallel order type.
+- Customer-facing progress updates are derived from canonical order transitions plus
+  storefront-specific `storefront.status_hook_emitted` and
+  `storefront.notification_queued` events written into the existing order event stream.
 
 ## Kitchen And Board
 
@@ -155,6 +169,29 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 - PHASE 7 kiosk checkout no longer writes new `KioskPaymentHandoff` rows and instead
   creates a generic payment intent plus a single processed allocation.
 
+## Storefront
+
+- Public storefront runtime is exposed as:
+  - `GET /storefront/bootstrap`
+  - `POST /storefront/customer-sessions`
+  - `GET /storefront/customer-sessions/orders`
+  - `POST /storefront/carts`
+  - `GET|PATCH /storefront/carts/:id`
+  - `POST /storefront/carts/:id/items`
+  - `PATCH|DELETE /storefront/carts/:id/items/:itemId`
+  - `POST /storefront/carts/:id/checkout`
+  - `GET /storefront/orders/:id/tracking`
+  - `POST /storefront/qr-links`
+  - `GET /storefront/qr/:token`
+- Storefront bootstrap resolves branding and rules from the existing customization
+  runtime and compiled catalog from the existing pricing/localization stack.
+- Guest checkout and customer session flows both reuse the same cart and order model;
+  PHASE 13 does not introduce CRM profiles or loyalty ownership yet.
+- Public access is token-based and stateless: carts, customer sessions, QR entry
+  links and tracking all use signed public tokens derived from the existing JWT secret.
+- Storefront notifications are modeled as queued event artifacts, not as direct
+  external provider delivery in the checkout transaction.
+
 ## Onboarding
 
 - Initial tenant bootstrap is exposed as `POST /onboarding/bootstrap`.
@@ -170,6 +207,8 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
 - Internal integration stays event-driven inside the modular monolith.
 - Domain changes write into `OutboxEvent`.
 - `EventEmitter2` is used for in-process event dispatch.
+- Customer storefront status hooks and queued notifications are appended to the same
+  `OrderEvent` and outbox-driven event pipeline as the rest of the commerce runtime.
 
 ## Offline-Lite And Customization
 
@@ -185,6 +224,31 @@ All tenant-scoped entities carry `tenantId`. Store-scoped entities also carry
   `GET|POST|PATCH /customization/rules`.
 - Kiosk bootstrap and checkout now resolve branding/rules through this
   customization layer instead of reading raw settings directly.
+
+## Localization
+
+- Localization runtime is exposed as:
+  - `GET /localization/preferences`
+  - `PUT /localization/preferences/tenant`
+  - `PUT /localization/preferences/store`
+  - `GET /localization/country-profiles`
+  - `PUT /localization/country-profiles/:countryCode`
+  - `GET|PUT /localization/content`
+  - `GET|PUT /localization/templates`
+  - `GET /localization/context`
+  - `GET /localization/language-pack`
+  - `POST /localization/language-pack/import`
+  - `POST /localization/templates/render`
+- PHASE 12 keeps localization storage inside existing settings tables using
+  explicit keys for preferences, country profiles, content and templates.
+- Locale precedence is centralized: query locale -> customer locale -> store
+  channel locale -> store default -> tenant channel locale -> tenant default
+  -> country profile default -> fallback.
+- Country profiles carry currency, tax metadata and compliance flags as a policy
+  layer and are intentionally kept separate from pricing/checkout arithmetic in
+  this phase.
+- Localized templates are synchronous in PHASE 12 and serve as a foundation for
+  later customer messaging, without prematurely introducing async notification flows.
 
 ## Hardening And Operations
 

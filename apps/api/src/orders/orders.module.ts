@@ -919,6 +919,11 @@ export class OrdersService {
         }
       });
 
+      await this.enqueueStorefrontCustomerUpdates(tx, order, {
+        trigger: "order.placed",
+        templateKey: "storefront-order-placed"
+      });
+
       return mapOrder(order);
     });
   }
@@ -1051,6 +1056,20 @@ export class OrdersService {
         aggregate: "order",
         aggregateId: order.id,
         payload: eventPayload
+      });
+
+      await this.enqueueStorefrontCustomerUpdates(tx, order, {
+        trigger: eventName,
+        templateKey:
+          dto.toStatus === "CONFIRMED"
+            ? "storefront-order-confirmed"
+            : dto.toStatus === "READY"
+              ? "storefront-order-ready"
+              : dto.toStatus === "COMPLETED"
+                ? "storefront-order-completed"
+                : dto.toStatus === "CANCELLED"
+                  ? "storefront-order-cancelled"
+                  : null
       });
 
       let createdKitchenTickets: Array<{
@@ -1408,6 +1427,71 @@ export class OrdersService {
         type: input.type,
         payload: input.payload as Prisma.InputJsonObject
       }
+    });
+  }
+
+  private async enqueueStorefrontCustomerUpdates(
+    tx: Prisma.TransactionClient,
+    order: LoadedOrder,
+    input: {
+      trigger: string;
+      templateKey: string | null;
+    }
+  ): Promise<void> {
+    if (order.channel !== "DELIVERY") {
+      return;
+    }
+
+    const hookPayload = {
+      orderId: order.id,
+      status: order.status,
+      trigger: input.trigger,
+      customerPhone: order.customerPhone
+    };
+
+    await this.recordOrderEvent(tx, {
+      orderId: order.id,
+      tenantId: order.tenantId,
+      storeId: order.storeId,
+      type: "storefront.status_hook_emitted",
+      payload: hookPayload
+    });
+
+    await this.domainEvents.record(tx, {
+      tenantId: order.tenantId,
+      eventName: "storefront.status_hook_emitted",
+      aggregate: "order",
+      aggregateId: order.id,
+      payload: hookPayload
+    });
+
+    if (!order.customerPhone?.trim() || !input.templateKey) {
+      return;
+    }
+
+    const notificationPayload = {
+      orderId: order.id,
+      status: order.status,
+      trigger: input.trigger,
+      customerPhone: order.customerPhone,
+      templateKey: input.templateKey,
+      deliveryPath: "async_event"
+    };
+
+    await this.recordOrderEvent(tx, {
+      orderId: order.id,
+      tenantId: order.tenantId,
+      storeId: order.storeId,
+      type: "storefront.notification_queued",
+      payload: notificationPayload
+    });
+
+    await this.domainEvents.record(tx, {
+      tenantId: order.tenantId,
+      eventName: "storefront.notification_queued",
+      aggregate: "order",
+      aggregateId: order.id,
+      payload: notificationPayload
     });
   }
 

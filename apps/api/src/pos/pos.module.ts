@@ -325,7 +325,8 @@ class PosService {
     const catalog = await this.pricingService.compiledCatalog(context, {
       tenantId: bootstrapData.device.tenantId,
       storeId: bootstrapData.device.storeId,
-      priceListId: query.priceListId
+      priceListId: query.priceListId,
+      channel: "POS"
     });
 
     return {

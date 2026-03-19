@@ -52,3 +52,31 @@
 - текущие process-local metrics и structured logs достаточны для baseline hardening, но multi-instance rollout требует явной boundary между internal probes и future external export;
 - status endpoint и env contract дают testable operational surface без premature инфраструктурной миграции;
 - это позволяет следующей итерации подключить OTLP/alerts на уже определенный runtime contract, а не придумывать его заново под давлением production rollout.
+
+## ADR-033 — Localization Registry Reuses Existing Settings Storage Instead Of New Phase-Local Tables
+Принято: PHASE 12 хранит localization preferences, country profiles, localized content и localized templates поверх existing `TenantSetting`/`StoreSetting` ключей, а не вводит новые dedicated Prisma tables в этой фазе.
+Причина:
+- фаза должна быстро зафиксировать platform capability и единый runtime contract для locale/country/content/template resolution, не раздувая миграции до того, как storefront, notifications и billing докажут окончательные write patterns;
+- existing settings storage уже tenant/store-scoped, audited и совместима с multi-tenant boundary, поэтому подходит как controlled registry для AI-driven implementation without schema forks;
+- это сохраняет freedom для последующего выделения отдельных доменных таблиц, если `PHASE 13+` покажут, что catalogs, customer messaging или billing требуют другой write/read shape.
+
+## ADR-034 — Locale Resolution And Country Policy Are Centralized Before Channel Expansion
+Принято: locale resolution и country-aware policy вводятся как единый localization service с precedence `query locale -> customer locale -> store channel locale -> store default -> tenant channel locale -> tenant default -> country profile default -> fallback`, а compiled catalog получает localization metadata вместо country-specific веток в runtime code.
+Причина:
+- без централизованного precedence порядка web, kiosk, POS и будущий storefront быстро разъедутся по локали и fallback behavior;
+- country profile должен описывать currency, tax metadata и compliance flags как policy layer, а не протекать условными `if country == ...` в pricing/checkout flow;
+- synchronous language-pack import/export и template rendering достаточны для текущей фазы, но новая service boundary уже оставляет место для async sync/generation в будущих notification и marketplace phases.
+
+## ADR-035 — Public Storefront Reuses Existing Commerce Core Through The `DELIVERY` Channel
+Принято: PHASE 13 не вводит новый storefront-only order domain. Public online commerce использует existing compiled catalog, carts, checkout, payments и order lifecycle, а текущий storefront runtime маппится на канал `DELIVERY`.
+Причина:
+- это позволяет быстро открыть customer-facing online channel без дублирования order/cart/payment logic рядом с kiosk и POS;
+- `DELIVERY` уже является наиболее близким operator-facing commerce channel для public online flow и дает совместимость с existing analytics, customization и payment-provider resolution;
+- выделение отдельного storefront channel имеет смысл только если будущие fulfillment or billing phases докажут, что `DELIVERY` semantics больше не покрывают online commerce behavior.
+
+## ADR-036 — Public Storefront Access And Customer Updates Stay Stateless And Event-Backed
+Принято: public storefront access оформляется stateless signed tokens для cart access, customer sessions, QR entry links и order tracking, а customer-facing status updates фиксируются как `storefront.status_hook_emitted` и `storefront.notification_queued` events в existing `OrderEvent` + outbox pipeline.
+Причина:
+- public online channel требует security boundary сильнее, чем raw ids/query params, но не оправдывает отдельную session table or public identity store в рамках PHASE 13;
+- stateless tokens переиспользуют existing JWT secret model и позволяют безопасно открыть guest, QR и tracking flows без новой persistence surface;
+- event-backed notification artifacts отделяют customer update contract от будущих real outbound providers и не зашивают delivery side effects в synchronous checkout path.

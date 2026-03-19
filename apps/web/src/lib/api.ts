@@ -3,6 +3,7 @@ import type {
   AnalyticsSnapshotDto,
   AuthMeResponse,
   AuthTokensResponse,
+  CountryProfileDto,
   CustomizationEvaluationDto,
   CustomizationRuleDto,
   FeatureFlagDto,
@@ -12,6 +13,12 @@ import type {
   KioskCheckoutResponse,
   KitchenTicketDto,
   ListResponse,
+  LocalizationContextDto,
+  LocalizationLanguagePackDto,
+  LocalizationPreferencesDto,
+  LocalizationPreferencesStateDto,
+  LocalizedContentDto,
+  LocalizedTemplateDto,
   LoginRequest,
   OwnerCabinetDashboardDto,
   PaymentAttemptDto,
@@ -20,6 +27,14 @@ import type {
   PaymentProviderConfigDto,
   PaymentReconciliationSummaryDto,
   RefreshRequest,
+  RenderLocalizedTemplateResponse,
+  StorefrontBootstrapResponse,
+  StorefrontCartSessionDto,
+  StorefrontCheckoutResponse,
+  StorefrontCustomerSessionDto,
+  StorefrontOrderTrackingResponse,
+  StorefrontQrLinkDto,
+  StorefrontQrResolutionDto,
   StoreSettingDto,
   TenantSettingDto,
   UpsertFeatureFlagRequest,
@@ -194,6 +209,258 @@ export function upsertStoreSetting(
     "/settings/store",
     {
       method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function getLocalizationPreferences(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    storeId?: string;
+  }
+): Promise<LocalizationPreferencesStateDto> {
+  return request<LocalizationPreferencesStateDto>(
+    withSearchParams("/localization/preferences", params),
+    {},
+    accessToken
+  );
+}
+
+export function upsertTenantLocalizationPreferences(
+  accessToken: string,
+  payload: {
+    defaultLocale: string;
+    fallbackLocale?: string;
+    supportedLocales?: string[];
+    countryCode?: string | null;
+    currency?: string | null;
+    timezone?: string | null;
+    channelLocales?: Partial<
+      Record<"ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE", string>
+    >;
+  },
+  tenantId?: string
+): Promise<LocalizationPreferencesDto> {
+  return request<LocalizationPreferencesDto>(
+    withSearchParams("/localization/preferences/tenant", { tenantId }),
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function upsertStoreLocalizationPreferences(
+  accessToken: string,
+  payload: {
+    storeId: string;
+    defaultLocale: string;
+    fallbackLocale?: string;
+    supportedLocales?: string[];
+    countryCode?: string | null;
+    currency?: string | null;
+    timezone?: string | null;
+    channelLocales?: Partial<
+      Record<"ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE", string>
+    >;
+  }
+): Promise<LocalizationPreferencesDto> {
+  return request<LocalizationPreferencesDto>(
+    "/localization/preferences/store",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function listCountryProfiles(
+  accessToken: string,
+  tenantId?: string
+): Promise<ListResponse<CountryProfileDto>> {
+  return request<ListResponse<CountryProfileDto>>(
+    withSearchParams("/localization/country-profiles", { tenantId }),
+    {},
+    accessToken
+  );
+}
+
+export function upsertCountryProfile(
+  accessToken: string,
+  countryCode: string,
+  payload: {
+    defaultLocale: string;
+    supportedLocales?: string[];
+    currency: string;
+    tax?: {
+      mode?: "NONE" | "INCLUSIVE" | "EXCLUSIVE";
+      ratePercent?: number | null;
+      label?: string | null;
+    };
+    complianceFlags?: string[];
+    metadata?: Record<string, unknown>;
+  },
+  tenantId?: string
+): Promise<CountryProfileDto> {
+  return request<CountryProfileDto>(
+    withSearchParams(`/localization/country-profiles/${countryCode}`, { tenantId }),
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function listLocalizedContent(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    targetType?: "CATEGORY" | "PRODUCT" | "VARIANT" | "MODIFIER_GROUP" | "MODIFIER_OPTION" | "BRANDING";
+    targetId?: string;
+  }
+): Promise<ListResponse<LocalizedContentDto>> {
+  return request<ListResponse<LocalizedContentDto>>(
+    withSearchParams("/localization/content", params),
+    {},
+    accessToken
+  );
+}
+
+export function upsertLocalizedContent(
+  accessToken: string,
+  payload: {
+    tenantId: string;
+    targetType: "CATEGORY" | "PRODUCT" | "VARIANT" | "MODIFIER_GROUP" | "MODIFIER_OPTION" | "BRANDING";
+    targetId: string;
+    entries: Record<string, Record<string, string>>;
+  }
+): Promise<LocalizedContentDto> {
+  return request<LocalizedContentDto>(
+    "/localization/content",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function listLocalizedTemplates(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    templateKey?: string;
+    channel?: "ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE";
+  }
+): Promise<ListResponse<LocalizedTemplateDto>> {
+  return request<ListResponse<LocalizedTemplateDto>>(
+    withSearchParams("/localization/templates", params),
+    {},
+    accessToken
+  );
+}
+
+export function upsertLocalizedTemplate(
+  accessToken: string,
+  payload: {
+    tenantId: string;
+    templateKey: string;
+    channel?: "ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE" | null;
+    description?: string | null;
+    variables?: string[];
+    entries: Record<
+      string,
+      {
+        subject?: string;
+        title?: string;
+        body?: string;
+        sms?: string;
+        pushTitle?: string;
+        pushBody?: string;
+      }
+    >;
+  }
+): Promise<LocalizedTemplateDto> {
+  return request<LocalizedTemplateDto>(
+    "/localization/templates",
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function getLocalizationContext(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    storeId?: string;
+    locale?: string;
+    customerLocale?: string;
+    countryCode?: string;
+    channel?: "ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE";
+    currency?: string;
+  }
+): Promise<LocalizationContextDto> {
+  return request<LocalizationContextDto>(
+    withSearchParams("/localization/context", params),
+    {},
+    accessToken
+  );
+}
+
+export function exportLocalizationLanguagePack(
+  accessToken: string,
+  tenantId?: string
+): Promise<LocalizationLanguagePackDto> {
+  return request<LocalizationLanguagePackDto>(
+    withSearchParams("/localization/language-pack", { tenantId }),
+    {},
+    accessToken
+  );
+}
+
+export function importLocalizationLanguagePack(
+  accessToken: string,
+  payload: {
+    tenantId?: string;
+    pack: LocalizationLanguagePackDto;
+  }
+): Promise<LocalizationLanguagePackDto> {
+  return request<LocalizationLanguagePackDto>(
+    "/localization/language-pack/import",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function renderLocalizedTemplate(
+  accessToken: string,
+  payload: {
+    tenantId?: string;
+    storeId?: string | null;
+    templateKey: string;
+    channel?: "ADMIN" | "POS" | "KIOSK" | "DELIVERY" | "KITCHEN" | "BOARD" | "BACKOFFICE" | null;
+    locale?: string;
+    customerLocale?: string;
+    countryCode?: string;
+    variables?: Record<string, string | number | boolean | null>;
+  }
+): Promise<RenderLocalizedTemplateResponse> {
+  return request<RenderLocalizedTemplateResponse>(
+    "/localization/templates/render",
+    {
+      method: "POST",
       body: JSON.stringify(payload)
     },
     accessToken
@@ -607,4 +874,185 @@ export function issueKioskAccessToken(
     },
     accessToken
   );
+}
+
+export function getStorefrontBootstrap(params: {
+  storeCode: string;
+  qrAccessToken?: string;
+  customerSessionToken?: string;
+  locale?: string;
+}): Promise<StorefrontBootstrapResponse> {
+  return request<StorefrontBootstrapResponse>(
+    withSearchParams("/storefront/bootstrap", {
+      storeCode: params.storeCode,
+      qrAccessToken: params.qrAccessToken,
+      customerSessionToken: params.customerSessionToken,
+      locale: params.locale
+    })
+  );
+}
+
+export function createStorefrontCustomerSession(payload: {
+  storeCode: string;
+  customerName?: string | null;
+  customerPhone: string;
+}): Promise<StorefrontCustomerSessionDto> {
+  return request<StorefrontCustomerSessionDto>("/storefront/customer-sessions", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function listStorefrontCustomerOrders(
+  accessToken: string
+): Promise<ListResponse<{
+  orderId: string;
+  number: string;
+  status: string;
+  total: string;
+  placedAt: string;
+  tracking: {
+    orderId: string;
+    accessToken: string;
+    expiresAt: string;
+    trackingPath: string;
+  };
+}>> {
+  return request(
+    withSearchParams("/storefront/customer-sessions/orders", { accessToken })
+  );
+}
+
+export function createStorefrontCart(payload: {
+  storeId: string;
+  qrAccessToken?: string | null;
+  customerSessionToken?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+}): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>("/storefront/carts", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getStorefrontCart(
+  cartId: string,
+  accessToken: string
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(
+    withSearchParams(`/storefront/carts/${cartId}`, { accessToken })
+  );
+}
+
+export function updateStorefrontCart(
+  cartId: string,
+  payload: {
+    accessToken: string;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    note?: string | null;
+  }
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function addStorefrontCartItem(
+  cartId: string,
+  payload: {
+    accessToken: string;
+    productId: string;
+    variantId?: string | null;
+    quantity: number;
+    priceListId?: string | null;
+    modifierOptionIds?: string[];
+  }
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}/items`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateStorefrontCartItem(
+  cartId: string,
+  itemId: string,
+  payload: {
+    accessToken: string;
+    variantId?: string | null;
+    quantity?: number;
+    priceListId?: string | null;
+    modifierOptionIds?: string[];
+  }
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(`/storefront/carts/${cartId}/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteStorefrontCartItem(
+  cartId: string,
+  itemId: string,
+  accessToken: string
+): Promise<StorefrontCartSessionDto> {
+  return request<StorefrontCartSessionDto>(
+    withSearchParams(`/storefront/carts/${cartId}/items/${itemId}`, { accessToken }),
+    {
+      method: "DELETE"
+    }
+  );
+}
+
+export function storefrontCheckout(
+  cartId: string,
+  payload: {
+    accessToken: string;
+    customerSessionToken?: string | null;
+    customerName?: string | null;
+    customerPhone?: string | null;
+    note?: string | null;
+    paymentMethod: "CASH" | "CARD" | "QR";
+  }
+): Promise<StorefrontCheckoutResponse> {
+  return request<StorefrontCheckoutResponse>(`/storefront/carts/${cartId}/checkout`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getStorefrontOrderTracking(
+  orderId: string,
+  accessToken: string
+): Promise<StorefrontOrderTrackingResponse> {
+  return request<StorefrontOrderTrackingResponse>(
+    withSearchParams(`/storefront/orders/${orderId}/tracking`, { accessToken })
+  );
+}
+
+export function createStorefrontQrLink(
+  accessToken: string,
+  payload: {
+    tenantId?: string;
+    storeId: string;
+    pointKey?: string | null;
+    locale?: string | null;
+  }
+): Promise<StorefrontQrLinkDto> {
+  return request<StorefrontQrLinkDto>(
+    "/storefront/qr-links",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function resolveStorefrontQrToken(token: string): Promise<StorefrontQrResolutionDto> {
+  return request<StorefrontQrResolutionDto>(`/storefront/qr/${token}`);
 }

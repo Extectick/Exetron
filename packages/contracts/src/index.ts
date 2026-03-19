@@ -180,6 +180,123 @@ export interface StoreSettingDto {
   updatedAt: string;
 }
 
+export interface LocalizationPreferencesDto {
+  scope: "TENANT" | "STORE";
+  tenantId: string;
+  storeId: string | null;
+  defaultLocale: string;
+  fallbackLocale: string;
+  supportedLocales: string[];
+  countryCode: string | null;
+  currency: string | null;
+  timezone: string | null;
+  channelLocales: Partial<Record<CustomizationChannel, string>>;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface LocalizationPreferencesStateDto {
+  tenant: LocalizationPreferencesDto | null;
+  store: LocalizationPreferencesDto | null;
+}
+
+export interface CountryProfileTaxPolicyDto {
+  mode: "NONE" | "INCLUSIVE" | "EXCLUSIVE";
+  ratePercent: number | null;
+  label: string | null;
+}
+
+export interface CountryProfileDto {
+  tenantId: string;
+  countryCode: string;
+  defaultLocale: string;
+  supportedLocales: string[];
+  currency: string;
+  tax: CountryProfileTaxPolicyDto;
+  complianceFlags: string[];
+  metadata: Record<string, unknown>;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface LocalizedContentDto {
+  tenantId: string;
+  targetType:
+    | "CATEGORY"
+    | "PRODUCT"
+    | "VARIANT"
+    | "MODIFIER_GROUP"
+    | "MODIFIER_OPTION"
+    | "BRANDING";
+  targetId: string;
+  entries: Record<string, Record<string, string>>;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface LocalizedTemplateEntryDto {
+  subject?: string;
+  title?: string;
+  body?: string;
+  sms?: string;
+  pushTitle?: string;
+  pushBody?: string;
+}
+
+export interface LocalizedTemplateDto {
+  tenantId: string;
+  templateKey: string;
+  channel: CustomizationChannel | null;
+  description: string | null;
+  variables: string[];
+  entries: Record<string, LocalizedTemplateEntryDto>;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface LocalizationFormattingPreviewDto {
+  moneyExample: string;
+  dateExample: string;
+  addressExample: string;
+  phoneExample: string;
+}
+
+export interface LocalizationContextDto {
+  tenantId: string;
+  storeId: string | null;
+  locale: string;
+  fallbackLocale: string;
+  resolvedBy: string[];
+  countryCode: string | null;
+  supportedLocales: string[];
+  currency: string;
+  tax: CountryProfileTaxPolicyDto;
+  complianceFlags: string[];
+  formatting: LocalizationFormattingPreviewDto;
+}
+
+export interface LocalizationLanguagePackDto {
+  tenantId: string;
+  generatedAt: string;
+  preferences: {
+    tenant: LocalizationPreferencesDto | null;
+    stores: LocalizationPreferencesDto[];
+  };
+  countryProfiles: CountryProfileDto[];
+  content: LocalizedContentDto[];
+  templates: LocalizedTemplateDto[];
+}
+
+export interface RenderLocalizedTemplateResponse {
+  tenantId: string;
+  storeId: string | null;
+  templateKey: string;
+  channel: CustomizationChannel | null;
+  locale: string;
+  fallbackLocale: string;
+  rendered: LocalizedTemplateEntryDto;
+}
+
 export interface FeatureFlagDto {
   id: string;
   tenantId: string;
@@ -420,6 +537,13 @@ export interface CompiledCatalogResponse {
   tenantId: string;
   storeId: string;
   generatedAt: string;
+  localization: {
+    locale: string;
+    fallbackLocale: string;
+    countryCode: string | null;
+    currency: string;
+    tax: CountryProfileTaxPolicyDto;
+  };
   categories: CompiledCatalogCategoryDto[];
   uncategorizedProducts: CompiledCatalogProductDto[];
 }
@@ -805,6 +929,118 @@ export interface KioskPaymentHandoffDto {
   completedAt: string | null;
 }
 
+export interface StorefrontBrandingDto {
+  themeName: string;
+  logoText: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  accentColor: string;
+  surfaceColor: string;
+  bannerImageUrl: string | null;
+}
+
+export interface StorefrontRulesDto {
+  allowGuestCheckout: boolean;
+  allowCustomerSessions: boolean;
+  requireCustomerName: boolean;
+  requireCustomerPhone: boolean;
+  allowNotes: boolean;
+  autoConfirmPaidOrders: boolean;
+  allowedPaymentMethods: PaymentMethodKind[];
+}
+
+export interface StorefrontCustomerSessionStateDto {
+  mode: "CUSTOMER";
+  customerName: string | null;
+  customerPhone: string;
+}
+
+export interface StorefrontCustomerSessionDto {
+  tenantId: string;
+  storeId: string;
+  customerName: string | null;
+  customerPhone: string;
+  accessToken: string;
+  expiresAt: string;
+  storefrontPath: string;
+}
+
+export interface StorefrontCartAccessTokenDto {
+  cartId: string;
+  accessToken: string;
+  expiresAt: string;
+}
+
+export interface StorefrontOrderTrackingTokenDto {
+  orderId: string;
+  accessToken: string;
+  expiresAt: string;
+  trackingPath: string;
+}
+
+export interface StorefrontQrLinkDto {
+  storeId: string;
+  pointKey: string | null;
+  accessToken: string;
+  expiresAt: string;
+  storefrontPath: string;
+}
+
+export interface StorefrontQrResolutionDto {
+  tenantId: string;
+  storeId: string;
+  storeCode: string;
+  pointKey: string | null;
+  locale: string | null;
+  storefrontPath: string;
+}
+
+export interface StorefrontBootstrapResponse {
+  tenantId: string;
+  storeId: string;
+  storeCode: string;
+  storeName: string;
+  pointKey: string | null;
+  branding: StorefrontBrandingDto;
+  rules: StorefrontRulesDto;
+  catalog: CompiledCatalogResponse;
+  customerSession: StorefrontCustomerSessionStateDto | null;
+}
+
+export interface StorefrontCartSessionDto {
+  cart: CartDto;
+  access: StorefrontCartAccessTokenDto;
+  customerSession: StorefrontCustomerSessionStateDto | null;
+}
+
+export interface StorefrontCheckoutResponse {
+  order: OrderDto;
+  paymentIntent: PaymentIntentDto;
+  tracking: StorefrontOrderTrackingTokenDto;
+}
+
+export interface StorefrontTrackingNotificationDto {
+  type: string;
+  templateKey: string | null;
+  status: "QUEUED";
+  createdAt: string;
+}
+
+export interface StorefrontOrderTrackingResponse {
+  order: OrderDto;
+  events: OrderEventDto[];
+  notifications: StorefrontTrackingNotificationDto[];
+}
+
+export interface StorefrontCustomerOrderListItemDto {
+  orderId: string;
+  number: string;
+  status: OrderStatus;
+  total: string;
+  placedAt: string;
+  tracking: StorefrontOrderTrackingTokenDto;
+}
+
 export type ListResponse<TItem> = PaginationResult<TItem>;
 
 export interface CreateTenantRequest {
@@ -916,6 +1152,63 @@ export interface UpsertStoreSettingRequest {
   storeId: string;
   key: string;
   value: Record<string, unknown>;
+}
+
+export interface UpsertLocalizationPreferencesRequest {
+  defaultLocale: string;
+  fallbackLocale?: string;
+  supportedLocales?: string[];
+  countryCode?: string | null;
+  currency?: string | null;
+  timezone?: string | null;
+  channelLocales?: Partial<Record<CustomizationChannel, string>>;
+}
+
+export interface UpsertCountryProfileRequest {
+  defaultLocale: string;
+  supportedLocales?: string[];
+  currency: string;
+  tax?: Partial<CountryProfileTaxPolicyDto>;
+  complianceFlags?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface UpsertLocalizedContentRequest {
+  tenantId: string;
+  targetType:
+    | "CATEGORY"
+    | "PRODUCT"
+    | "VARIANT"
+    | "MODIFIER_GROUP"
+    | "MODIFIER_OPTION"
+    | "BRANDING";
+  targetId: string;
+  entries: Record<string, Record<string, string>>;
+}
+
+export interface UpsertLocalizedTemplateRequest {
+  tenantId: string;
+  templateKey: string;
+  channel?: CustomizationChannel | null;
+  description?: string | null;
+  variables?: string[];
+  entries: Record<string, LocalizedTemplateEntryDto>;
+}
+
+export interface ImportLocalizationLanguagePackRequest {
+  tenantId?: string;
+  pack: LocalizationLanguagePackDto;
+}
+
+export interface RenderLocalizedTemplateRequest {
+  tenantId?: string;
+  storeId?: string | null;
+  templateKey: string;
+  channel?: CustomizationChannel | null;
+  locale?: string;
+  customerLocale?: string;
+  countryCode?: string;
+  variables?: Record<string, string | number | boolean | null>;
 }
 
 export interface UpsertFeatureFlagRequest {
@@ -1280,6 +1573,52 @@ export interface KioskCheckoutRequest {
 export interface KioskCheckoutResponse {
   order: OrderDto;
   paymentHandoff: KioskPaymentHandoffDto;
+}
+
+export interface CreateStorefrontCustomerSessionRequest {
+  storeCode: string;
+  customerName?: string | null;
+  customerPhone: string;
+}
+
+export interface CreateStorefrontCartRequest {
+  storeId: string;
+  qrAccessToken?: string | null;
+  customerSessionToken?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+}
+
+export interface UpdateStorefrontCartRequest {
+  accessToken: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+}
+
+export interface AddStorefrontCartItemRequest extends AddCartItemRequest {
+  accessToken: string;
+}
+
+export interface UpdateStorefrontCartItemRequest extends UpdateCartItemRequest {
+  accessToken: string;
+}
+
+export interface StorefrontCheckoutRequest {
+  accessToken: string;
+  customerSessionToken?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  note?: string | null;
+  paymentMethod: PaymentMethodKind;
+}
+
+export interface CreateStorefrontQrLinkRequest {
+  tenantId?: string;
+  storeId: string;
+  pointKey?: string | null;
+  locale?: string | null;
 }
 
 export interface AdminNavItem {

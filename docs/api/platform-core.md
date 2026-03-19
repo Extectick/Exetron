@@ -22,9 +22,31 @@
 - `GET /settings/stores/:id`
 - `PUT /settings/store`
 - `GET|PUT /feature-flags`
+- `GET /localization/preferences`
+- `PUT /localization/preferences/tenant`
+- `PUT /localization/preferences/store`
+- `GET /localization/country-profiles`
+- `PUT /localization/country-profiles/:countryCode`
+- `GET|PUT /localization/content`
+- `GET|PUT /localization/templates`
+- `GET /localization/context`
+- `GET /localization/language-pack`
+- `POST /localization/language-pack/import`
+- `POST /localization/templates/render`
 - `GET /analytics/owner-cabinet`
 - `GET|POST /analytics/snapshots`
 - `POST /analytics/precompute`
+- `GET /storefront/bootstrap`
+- `POST /storefront/customer-sessions`
+- `GET /storefront/customer-sessions/orders`
+- `POST /storefront/carts`
+- `GET|PATCH /storefront/carts/:id`
+- `POST /storefront/carts/:id/items`
+- `PATCH|DELETE /storefront/carts/:id/items/:itemId`
+- `POST /storefront/carts/:id/checkout`
+- `GET /storefront/orders/:id/tracking`
+- `POST /storefront/qr-links`
+- `GET /storefront/qr/:token`
 - `GET /health`
 - `GET /health/live`
 - `GET /health/readiness`
@@ -49,3 +71,16 @@
   and returns source metadata so UI/runtime can distinguish live vs precomputed reads.
 - `GET /health/observability` exposes the current observability exporter boundary
   and the configured external metrics/tracing/alert path.
+- `GET /localization/context` exposes the resolved locale, fallback locale, country,
+  currency, tax metadata, compliance flags and formatting previews for the requested
+  tenant/store/channel context.
+- `GET /catalog/compiled` now returns localization metadata alongside the catalog so
+  channel runtimes can distinguish resolved locale/country/currency context from raw
+  pricing numbers.
+- Public storefront runtime uses signed access tokens for carts, customer sessions,
+  QR links, and order tracking; only `POST /storefront/qr-links` stays protected,
+  while the remaining storefront endpoints validate the appropriate public token shape.
+- PHASE 13 reuses the existing `DELIVERY` order channel for public online commerce
+  instead of creating a parallel storefront-only order lifecycle.
+- Customer-facing status updates are surfaced through `GET /storefront/orders/:id/tracking`
+  and are derived from canonical order events plus queued storefront notification events.
