@@ -70,6 +70,10 @@ if (!includeMobile && !mobileOnly) {
 }
 
 if (shouldStartApiAndWeb) {
+  await runCommand(["db:deploy"], workspaceRoot);
+}
+
+if (shouldStartApiAndWeb) {
   startProcess("api", ["--filter", "@exetron/api", "dev"]);
   startProcess("web", [
     "--filter",
@@ -175,6 +179,23 @@ function startProcess(name, args) {
     );
     void shutdown(exitCode === 0 ? 1 : exitCode);
   });
+}
+
+async function runCommand(args, cwd) {
+  const exitCode = await new Promise((resolve) => {
+    const child = spawn(pnpmBin, args, {
+      cwd,
+      stdio: "inherit",
+      shell,
+      env: managedEnv
+    });
+
+    child.on("exit", (code) => resolve(code ?? 1));
+  });
+
+  if (exitCode !== 0) {
+    process.exit(exitCode);
+  }
 }
 
 async function shutdown(exitCode) {

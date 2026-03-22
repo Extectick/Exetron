@@ -298,6 +298,150 @@ th {
   gap: 0.75rem;
 }
 
+.summary-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.summary-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 1rem 1.1rem;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.84), rgba(255, 246, 234, 0.72)),
+    linear-gradient(135deg, rgba(196, 109, 56, 0.08), rgba(46, 111, 80, 0.06));
+}
+
+.summary-card strong {
+  font-size: 1.8rem;
+}
+
+.summary-card span,
+.section-note,
+.entity-meta {
+  color: var(--muted);
+}
+
+.entity-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.entity-card {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.05rem;
+  border-radius: 22px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.entity-card.active {
+  outline: 2px solid rgba(196, 109, 56, 0.3);
+  background: rgba(255, 248, 239, 0.92);
+}
+
+.entity-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.entity-title {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.entity-title h3,
+.entity-title h4 {
+  margin: 0;
+}
+
+.entity-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.detail-grid strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-dark);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.code-chip,
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  border: 1px solid var(--border);
+}
+
+.code-chip {
+  background: rgba(31, 46, 39, 0.06);
+}
+
+.status-chip {
+  background: rgba(196, 109, 56, 0.12);
+  color: var(--accent-dark);
+}
+
+.status-chip.status-archived,
+.status-chip.status-cancelled,
+.status-chip.status-failed,
+.status-chip.status-suspended {
+  background: rgba(122, 36, 31, 0.1);
+  color: #7a241f;
+}
+
+.status-chip.status-active,
+.status-chip.status-completed,
+.status-chip.status-applied {
+  background: rgba(46, 111, 80, 0.12);
+  color: #25543e;
+}
+
+.inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+}
+
+.empty-state {
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.45);
+}
+
 .error-banner {
   padding: 0.8rem 1rem;
   border-radius: 18px;

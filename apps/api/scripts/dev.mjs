@@ -22,6 +22,7 @@ const sharedEnv = {
 
 await runCommand(["--filter", "@exetron/config", "build"], workspaceRoot);
 await runCommand(["--filter", "@exetron/database", "build"], workspaceRoot);
+await runCommand(["--filter", "@exetron/database", "db:deploy"], workspaceRoot);
 await runCommand(["build"], appRoot);
 
 startProcess(

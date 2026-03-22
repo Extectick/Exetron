@@ -14,24 +14,36 @@ import {
 import { ApiProperty, ApiPropertyOptional, ApiTags } from "@nestjs/swagger";
 import type {
   CancelPaymentIntentRequest,
+  ConnectorExecutionLogDto,
+  CreateHardwareJobRequest,
   CreatePaymentIntentRequest,
+  CreatePaymentOperationRequest,
   CreatePaymentProviderConfigRequest,
+  CreatePaymentSettlementRequest,
   ListResponse,
+  HardwareJobDto,
+  HardwareReceiptDto,
   PaymentAttemptDto,
   PaymentIntentDto,
   PaymentIntentListItemDto,
+  PaymentOperationDto,
   PaymentProviderConfigDto,
   PaymentReconciliationSummaryDto,
+  PaymentSettlementDto,
+  PaymentWebhookEventDto,
   ProcessPaymentAllocationRequest,
+  ReceivePaymentWebhookRequest,
   RecordPaymentIntentRequest,
   UpdatePaymentProviderConfigRequest
 } from "@exetron/contracts";
 import type { ApiEnv } from "@exetron/config";
 import { Prisma } from "@exetron/database";
 import type {
+  ConnectorKind,
   OrderChannel,
   PaymentAllocationStatus,
   PaymentMethodKind,
+  PaymentOperationKind,
   PaymentProviderType,
   RequestContext
 } from "@exetron/types";
@@ -57,16 +69,22 @@ import { AccessControlService } from "../common/access-control.service";
 import { decimalToString } from "../common/catalog-helpers";
 import { CurrentContext } from "../common/decorators/current-context.decorator";
 import { Permissions } from "../common/decorators/permissions.decorator";
+import { Public } from "../common/decorators/public.decorator";
 import { IdParamDto } from "../common/dto/id-param.dto";
 import { DatabaseContextService } from "../database/database-context.service";
+import { PrismaService } from "../database/prisma.service";
 import { DomainEventsModule } from "../domain-events/domain-events.module";
 import { DomainEventsService } from "../domain-events/domain-events.service";
 import { OrdersModule, OrdersService } from "../orders/orders.module";
 import {
+  executePaymentOperation,
+  executePaymentProviderAttempt,
+  resolvePaymentWebhook
+} from "./payment-adapter.util";
+import {
   resolveDefaultAutoConfirm,
   resolveDefaultProviderType,
   resolvePaymentIntentState,
-  simulateProviderResult,
   type PaymentAllocationInput,
   validatePaymentAllocations
 } from "./payment-runtime.util";
@@ -129,6 +147,34 @@ class PaymentSummaryQueryDto {
   @IsOptional()
   @IsUUID()
   storeId?: string;
+}
+
+class PaymentOperationsQueryDto extends PaymentSummaryQueryDto {
+  @ApiPropertyOptional({ enum: ["REFUND", "VOID"] })
+  @IsOptional()
+  @IsIn(["REFUND", "VOID"])
+  kind?: PaymentOperationKind;
+}
+
+class PaymentSettlementsQueryDto extends PaymentSummaryQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  providerKey?: string;
+}
+
+class PaymentWebhookQueryDto extends PaymentProviderConfigQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  providerKey?: string;
+}
+
+class HardwareJobsQueryDto extends PaymentSummaryQueryDto {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  orderId?: string;
 }
 
 class CreatePaymentProviderConfigDto implements CreatePaymentProviderConfigRequest {
@@ -300,6 +346,135 @@ class CancelPaymentIntentDto implements CancelPaymentIntentRequest {
   reason?: string | null;
 }
 
+class CreatePaymentOperationDto implements CreatePaymentOperationRequest {
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  paymentIntentId!: string;
+
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  paymentAllocationId?: string | null;
+
+  @ApiProperty({ enum: ["REFUND", "VOID"] })
+  @IsIn(["REFUND", "VOID"])
+  kind!: PaymentOperationKind;
+
+  @ApiProperty({ example: "5.00" })
+  @IsString()
+  @Matches(/^-?\d+(?:\.\d{1,2})?$/)
+  amount!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  reason?: string | null;
+}
+
+class CreatePaymentSettlementDto implements CreatePaymentSettlementRequest {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  tenantId?: string;
+
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  storeId?: string | null;
+
+  @ApiProperty()
+  @IsString()
+  providerKey!: string;
+
+  @ApiProperty()
+  @IsString()
+  periodStart!: string;
+
+  @ApiProperty()
+  @IsString()
+  periodEnd!: string;
+
+  @ApiPropertyOptional({ example: "0.00" })
+  @IsOptional()
+  @IsString()
+  @Matches(/^-?\d+(?:\.\d{1,2})?$/)
+  totalAmount?: string;
+
+  @ApiPropertyOptional({ example: "0.00" })
+  @IsOptional()
+  @IsString()
+  @Matches(/^-?\d+(?:\.\d{1,2})?$/)
+  settledAmount?: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsObject()
+  summary?: Record<string, unknown> | null;
+}
+
+class ReceivePaymentWebhookDto implements ReceivePaymentWebhookRequest {
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  tenantId?: string | null;
+
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  storeId?: string | null;
+
+  @ApiProperty()
+  @IsString()
+  deliveryId!: string;
+
+  @ApiProperty()
+  @IsString()
+  eventType!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsString()
+  signature?: string | null;
+
+  @ApiProperty()
+  @IsObject()
+  payload!: Record<string, unknown>;
+}
+
+class CreateHardwareJobDto implements CreateHardwareJobRequest {
+  @ApiPropertyOptional({ format: "uuid" })
+  @IsOptional()
+  @IsUUID()
+  tenantId?: string;
+
+  @ApiProperty({ format: "uuid" })
+  @IsUUID()
+  storeId!: string;
+
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  orderId?: string | null;
+
+  @ApiPropertyOptional({ format: "uuid", nullable: true })
+  @IsOptional()
+  @IsUUID()
+  deviceId?: string | null;
+
+  @ApiProperty()
+  @IsString()
+  connectorKey!: string;
+
+  @ApiProperty({ enum: ["FISCAL_RECEIPT", "PRINT_RECEIPT", "TERMINAL_CAPTURE", "SCANNER_SYNC"] })
+  @IsIn(["FISCAL_RECEIPT", "PRINT_RECEIPT", "TERMINAL_CAPTURE", "SCANNER_SYNC"])
+  kind!: "FISCAL_RECEIPT" | "PRINT_RECEIPT" | "TERMINAL_CAPTURE" | "SCANNER_SYNC";
+
+  @ApiPropertyOptional({ nullable: true })
+  @IsOptional()
+  @IsObject()
+  requestPayload?: Record<string, unknown> | null;
+}
+
 class PaymentAllocationParamsDto extends IdParamDto {
   @ApiProperty({ format: "uuid" })
   @IsUUID()
@@ -433,6 +608,206 @@ function mapPaymentAttempt(attempt: {
   };
 }
 
+function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function mapPaymentOperation(operation: {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  paymentIntentId: string;
+  paymentAllocationId: string | null;
+  orderId: string;
+  kind: string;
+  status: string;
+  amount: Prisma.Decimal;
+  currency: string;
+  providerKey: string;
+  externalReference: string | null;
+  reason: string | null;
+  requestPayload: Prisma.JsonValue | null;
+  responsePayload: Prisma.JsonValue | null;
+  processedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): PaymentOperationDto {
+  return {
+    id: operation.id,
+    tenantId: operation.tenantId,
+    storeId: operation.storeId,
+    paymentIntentId: operation.paymentIntentId,
+    paymentAllocationId: operation.paymentAllocationId,
+    orderId: operation.orderId,
+    kind: operation.kind as PaymentOperationKind,
+    status: operation.status as PaymentOperationDto["status"],
+    amount: operation.amount.toFixed(2),
+    currency: operation.currency,
+    providerKey: operation.providerKey,
+    externalReference: operation.externalReference,
+    reason: operation.reason,
+    requestPayload: asRecord(operation.requestPayload),
+    responsePayload: asRecord(operation.responsePayload),
+    processedAt: operation.processedAt?.toISOString() ?? null,
+    createdAt: operation.createdAt.toISOString(),
+    updatedAt: operation.updatedAt.toISOString()
+  };
+}
+
+function mapPaymentSettlement(settlement: {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  providerKey: string;
+  status: string;
+  currency: string;
+  periodStart: Date;
+  periodEnd: Date;
+  totalAmount: Prisma.Decimal;
+  settledAmount: Prisma.Decimal;
+  summary: Prisma.JsonValue | null;
+  importedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): PaymentSettlementDto {
+  return {
+    id: settlement.id,
+    tenantId: settlement.tenantId,
+    storeId: settlement.storeId,
+    providerKey: settlement.providerKey,
+    status: settlement.status as PaymentSettlementDto["status"],
+    currency: settlement.currency,
+    periodStart: settlement.periodStart.toISOString(),
+    periodEnd: settlement.periodEnd.toISOString(),
+    totalAmount: settlement.totalAmount.toFixed(2),
+    settledAmount: settlement.settledAmount.toFixed(2),
+    summary: asRecord(settlement.summary),
+    importedAt: settlement.importedAt?.toISOString() ?? null,
+    createdAt: settlement.createdAt.toISOString(),
+    updatedAt: settlement.updatedAt.toISOString()
+  };
+}
+
+function mapWebhookEvent(event: {
+  id: string;
+  tenantId: string | null;
+  storeId: string | null;
+  providerKey: string;
+  deliveryId: string;
+  eventType: string;
+  status: string;
+  signatureValid: boolean;
+  payload: Prisma.JsonValue;
+  processedAt: Date | null;
+  failureReason: string | null;
+  createdAt: Date;
+}): PaymentWebhookEventDto {
+  return {
+    id: event.id,
+    tenantId: event.tenantId,
+    storeId: event.storeId,
+    providerKey: event.providerKey,
+    deliveryId: event.deliveryId,
+    eventType: event.eventType,
+    status: event.status as PaymentWebhookEventDto["status"],
+    signatureValid: event.signatureValid,
+    payload: asRecord(event.payload) ?? {},
+    processedAt: event.processedAt?.toISOString() ?? null,
+    failureReason: event.failureReason,
+    createdAt: event.createdAt.toISOString()
+  };
+}
+
+function mapConnectorExecution(log: {
+  id: string;
+  tenantId: string | null;
+  storeId: string | null;
+  connectorKind: string;
+  connectorKey: string;
+  action: string;
+  status: string;
+  requestPayload: Prisma.JsonValue | null;
+  responsePayload: Prisma.JsonValue | null;
+  errorMessage: string | null;
+  createdAt: Date;
+  finishedAt: Date | null;
+}): ConnectorExecutionLogDto {
+  return {
+    id: log.id,
+    tenantId: log.tenantId,
+    storeId: log.storeId,
+    connectorKind: log.connectorKind as ConnectorKind,
+    connectorKey: log.connectorKey,
+    action: log.action,
+    status: log.status as ConnectorExecutionLogDto["status"],
+    requestPayload: asRecord(log.requestPayload),
+    responsePayload: asRecord(log.responsePayload),
+    errorMessage: log.errorMessage,
+    createdAt: log.createdAt.toISOString(),
+    finishedAt: log.finishedAt?.toISOString() ?? null
+  };
+}
+
+function mapHardwareJob(job: {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string | null;
+  deviceId: string | null;
+  connectorKey: string;
+  kind: string;
+  status: string;
+  requestPayload: Prisma.JsonValue | null;
+  resultPayload: Prisma.JsonValue | null;
+  failureReason: string | null;
+  finishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): HardwareJobDto {
+  return {
+    id: job.id,
+    tenantId: job.tenantId,
+    storeId: job.storeId,
+    orderId: job.orderId,
+    deviceId: job.deviceId,
+    connectorKey: job.connectorKey,
+    kind: job.kind as HardwareJobDto["kind"],
+    status: job.status as HardwareJobDto["status"],
+    requestPayload: asRecord(job.requestPayload),
+    resultPayload: asRecord(job.resultPayload),
+    failureReason: job.failureReason,
+    finishedAt: job.finishedAt?.toISOString() ?? null,
+    createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString()
+  };
+}
+
+function mapHardwareReceipt(receipt: {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  hardwareJobId: string | null;
+  orderId: string | null;
+  receiptType: string;
+  externalReference: string | null;
+  payload: Prisma.JsonValue;
+  createdAt: Date;
+}): HardwareReceiptDto {
+  return {
+    id: receipt.id,
+    tenantId: receipt.tenantId,
+    storeId: receipt.storeId,
+    hardwareJobId: receipt.hardwareJobId,
+    orderId: receipt.orderId,
+    receiptType: receipt.receiptType,
+    externalReference: receipt.externalReference,
+    payload: asRecord(receipt.payload) ?? {},
+    createdAt: receipt.createdAt.toISOString()
+  };
+}
+
 function mapProviderConfig(config: LegacyProviderConfig): PaymentProviderConfigDto {
   return {
     id: config.id ?? "default",
@@ -456,6 +831,7 @@ function mapProviderConfig(config: LegacyProviderConfig): PaymentProviderConfigD
 export class PaymentsService {
   constructor(
     @Inject(APP_ENV) private readonly env: ApiEnv,
+    private readonly prisma: PrismaService,
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService,
     private readonly audit: AuditService,
@@ -883,66 +1259,107 @@ export class PaymentsService {
         }
       });
 
-      const simulated = simulateProviderResult({
+      const execution = executePaymentProviderAttempt({
         providerKey: providerConfig.providerKey,
         providerType: providerConfig.providerType,
         method: allocation.method,
-        settings: providerConfig.settings
+        settings: providerConfig.settings,
+        secrets: providerConfig.resolvedSecrets
       });
       const now = new Date();
 
       await tx.paymentAttempt.update({
         where: { id: attempt.id },
         data: {
-          status: simulated.status,
-          responsePayload: simulated.responsePayload as Prisma.InputJsonObject,
-          externalReference: simulated.externalReference,
-          errorCode: simulated.errorCode,
-          errorMessage: simulated.errorMessage,
-          finishedAt: now
+          status: execution.status === "PENDING" ? "PENDING" : execution.status,
+          responsePayload: execution.responsePayload as Prisma.InputJsonObject,
+          externalReference: execution.externalReference,
+          errorCode: execution.errorCode,
+          errorMessage: execution.errorMessage,
+          finishedAt: execution.status === "PENDING" ? null : now
         }
       });
 
-      const allocationStatus: PaymentAllocationStatus =
-        simulated.status === "SUCCEEDED" ? "COMPLETED" : "FAILED";
-
-      await tx.paymentAllocation.update({
-        where: { id: allocation.id },
+      await tx.connectorExecutionLog.create({
         data: {
-          status: allocationStatus,
-          providerKey: providerConfig.providerKey,
-          externalReference: simulated.externalReference,
-          completedAt: allocationStatus === "COMPLETED" ? now : null,
-          failedAt: allocationStatus === "FAILED" ? now : null,
-          failureReason: simulated.errorMessage
+          tenantId: intent.tenantId,
+          storeId: intent.storeId,
+          connectorKind: "PAYMENT_PROVIDER",
+          connectorKey: providerConfig.providerKey,
+          action: "process_allocation",
+          status:
+            execution.status === "PENDING"
+              ? "PENDING"
+              : execution.status === "SUCCEEDED"
+                ? "COMPLETED"
+                : "FAILED",
+          requestPayload: requestPayload as Prisma.InputJsonObject,
+          responsePayload: execution.responsePayload as Prisma.InputJsonObject,
+          errorMessage: execution.errorMessage,
+          finishedAt: execution.status === "PENDING" ? null : now
         }
       });
 
-      const refreshed = await this.loadIntent(tx, intent.id);
-      const nextState = resolvePaymentIntentState({
-        totalAmount: decimalToString(refreshed.totalAmount) ?? "0.00",
-        allocations: refreshed.allocations.map((item) => ({
-          amount: decimalToString(item.amount) ?? "0.00",
-          status: item.status
-        }))
-      });
+      let updatedIntent: LoadedPaymentIntent;
+      if (execution.status === "PENDING") {
+        await tx.paymentAllocation.update({
+          where: { id: allocation.id },
+          data: {
+            status: "PENDING",
+            providerKey: providerConfig.providerKey,
+            externalReference: execution.externalReference,
+            completedAt: null,
+            failedAt: null,
+            failureReason: null
+          }
+        });
+        updatedIntent = await this.loadIntent(tx, intent.id);
+      } else {
+        const allocationStatus: PaymentAllocationStatus =
+          execution.status === "SUCCEEDED" ? "COMPLETED" : "FAILED";
 
-      const updatedIntent = await tx.paymentIntent.update({
-        where: { id: refreshed.id },
-        data: {
-          status: nextState.status,
-          paidAmount: nextState.paidAmount
-        },
-        include: {
-          allocations: {
-            orderBy: { createdAt: "asc" }
+        await tx.paymentAllocation.update({
+          where: { id: allocation.id },
+          data: {
+            status: allocationStatus,
+            providerKey: providerConfig.providerKey,
+            externalReference: execution.externalReference,
+            completedAt: allocationStatus === "COMPLETED" ? now : null,
+            failedAt: allocationStatus === "FAILED" ? now : null,
+            failureReason: execution.errorMessage
+          }
+        });
+
+        const refreshed = await this.loadIntent(tx, intent.id);
+        const nextState = resolvePaymentIntentState({
+          totalAmount: decimalToString(refreshed.totalAmount) ?? "0.00",
+          allocations: refreshed.allocations.map((item) => ({
+            amount: decimalToString(item.amount) ?? "0.00",
+            status: item.status
+          }))
+        });
+
+        updatedIntent = await tx.paymentIntent.update({
+          where: { id: refreshed.id },
+          data: {
+            status: nextState.status,
+            paidAmount: nextState.paidAmount
           },
-          order: true
-        }
-      });
+          include: {
+            allocations: {
+              orderBy: { createdAt: "asc" }
+            },
+            order: true
+          }
+        });
+      }
 
       const eventName =
-        simulated.status === "SUCCEEDED" ? "payment.attempt_succeeded" : "payment.attempt_failed";
+        execution.status === "PENDING"
+          ? "payment.attempt_pending_external"
+          : execution.status === "SUCCEEDED"
+            ? "payment.attempt_succeeded"
+            : "payment.attempt_failed";
 
       await this.audit.recordTx(tx, {
         tenantId: updatedIntent.tenantId,
@@ -956,9 +1373,9 @@ export class PaymentsService {
           paymentIntentId: updatedIntent.id,
           paymentAllocationId: allocation.id,
           providerKey: providerConfig.providerKey,
-          status: simulated.status,
-          externalReference: simulated.externalReference,
-          errorMessage: simulated.errorMessage
+          status: execution.status,
+          externalReference: execution.externalReference,
+          errorMessage: execution.errorMessage
         }
       });
 
@@ -971,7 +1388,8 @@ export class PaymentsService {
           paymentIntentId: updatedIntent.id,
           paymentAllocationId: allocation.id,
           providerKey: providerConfig.providerKey,
-          status: simulated.status
+          status: execution.status,
+          executionMode: execution.executionMode
         }
       });
 
@@ -1198,6 +1616,625 @@ export class PaymentsService {
         failedAttempts: {
           count: failedAttemptsCount
         }
+      };
+    });
+  }
+
+  listOperations(
+    context: RequestContext,
+    query: PaymentOperationsQueryDto
+  ): Promise<ListResponse<PaymentOperationDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+
+      const items = await tx.paymentOperation.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.kind ? { kind: query.kind } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      return {
+        items: items.map(mapPaymentOperation),
+        total: items.length
+      };
+    });
+  }
+
+  createOperation(
+    context: RequestContext,
+    dto: CreatePaymentOperationDto
+  ): Promise<PaymentOperationDto> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      const intent = await this.loadIntent(tx, dto.paymentIntentId);
+      this.accessControl.resolveTenantId(context, intent.tenantId);
+      this.accessControl.enforceStoreAccess(context, intent.storeId);
+
+      const allocation =
+        intent.allocations.find((item) => item.id === dto.paymentAllocationId) ??
+        intent.allocations.find((item) => item.status === "COMPLETED");
+      if (!allocation) {
+        throw new BadRequestException(
+          "A completed payment allocation is required for refund or void operations."
+        );
+      }
+
+      const providerConfig = await this.resolveProviderConfigTx(
+        tx,
+        intent,
+        allocation.method,
+        allocation.providerKey ?? null
+      );
+      const requestPayload = {
+        paymentIntentId: intent.id,
+        paymentAllocationId: allocation.id,
+        orderId: intent.orderId,
+        kind: dto.kind,
+        amount: dto.amount
+      };
+      const operation = await tx.paymentOperation.create({
+        data: {
+          tenantId: intent.tenantId,
+          storeId: intent.storeId,
+          paymentIntentId: intent.id,
+          paymentAllocationId: allocation.id,
+          orderId: intent.orderId,
+          kind: dto.kind,
+          status: "PENDING",
+          amount: dto.amount,
+          providerKey: providerConfig.providerKey,
+          reason: dto.reason ?? null,
+          requestPayload: requestPayload as Prisma.InputJsonObject,
+          createdByUserId: context.scope === "device" ? null : context.userId
+        }
+      });
+
+      const execution = executePaymentOperation({
+        providerKey: providerConfig.providerKey,
+        providerType: providerConfig.providerType,
+        method: allocation.method,
+        settings: providerConfig.settings,
+        secrets: providerConfig.resolvedSecrets,
+        kind: dto.kind,
+        amount: dto.amount
+      });
+      const now = new Date();
+      const updated = await tx.paymentOperation.update({
+        where: { id: operation.id },
+        data: {
+          status: execution.status === "PENDING" ? "PENDING" : execution.status,
+          externalReference: execution.externalReference,
+          responsePayload: execution.responsePayload as Prisma.InputJsonObject,
+          processedAt: execution.status === "PENDING" ? null : now
+        }
+      });
+
+      await tx.connectorExecutionLog.create({
+        data: {
+          tenantId: intent.tenantId,
+          storeId: intent.storeId,
+          connectorKind: "PAYMENT_PROVIDER",
+          connectorKey: providerConfig.providerKey,
+          action: dto.kind.toLowerCase(),
+          status:
+            execution.status === "PENDING"
+              ? "PENDING"
+              : execution.status === "SUCCEEDED"
+                ? "COMPLETED"
+                : "FAILED",
+          requestPayload: requestPayload as Prisma.InputJsonObject,
+          responsePayload: execution.responsePayload as Prisma.InputJsonObject,
+          errorMessage: execution.errorMessage,
+          finishedAt: execution.status === "PENDING" ? null : now
+        }
+      });
+
+      await tx.order.update({
+        where: { id: intent.orderId },
+        data: {
+          refundStatus: execution.status === "PENDING" ? "PENDING_MANUAL" : "NOT_REQUIRED"
+        }
+      });
+
+      await this.audit.recordTx(tx, {
+        tenantId: intent.tenantId,
+        storeId: intent.storeId,
+        actorType: this.resolveActorType(context),
+        actorId: this.resolveActorId(context),
+        action: `payment.${dto.kind.toLowerCase()}_requested`,
+        entityType: "payment_operation",
+        entityId: operation.id,
+        payload: {
+          paymentIntentId: intent.id,
+          kind: dto.kind,
+          status: updated.status,
+          externalReference: updated.externalReference
+        }
+      });
+
+      await this.domainEvents.record(tx, {
+        tenantId: intent.tenantId,
+        eventName: `payment.${dto.kind.toLowerCase()}_requested`,
+        aggregate: "payment_operation",
+        aggregateId: operation.id,
+        payload: {
+          paymentIntentId: intent.id,
+          paymentOperationId: operation.id,
+          kind: dto.kind,
+          status: updated.status
+        }
+      });
+
+      return mapPaymentOperation(updated);
+    });
+  }
+
+  listSettlements(
+    context: RequestContext,
+    query: PaymentSettlementsQueryDto
+  ): Promise<ListResponse<PaymentSettlementDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+
+      const items = await tx.paymentSettlement.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.providerKey ? { providerKey: query.providerKey } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      return {
+        items: items.map(mapPaymentSettlement),
+        total: items.length
+      };
+    });
+  }
+
+  createSettlement(
+    context: RequestContext,
+    dto: CreatePaymentSettlementDto
+  ): Promise<PaymentSettlementDto> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      const tenantId = this.accessControl.resolveTenantId(context, dto.tenantId ?? context.tenantId);
+      if (dto.storeId) {
+        this.accessControl.enforceStoreAccess(context, dto.storeId);
+      }
+
+      const created = await tx.paymentSettlement.create({
+        data: {
+          tenantId,
+          storeId: dto.storeId ?? null,
+          providerKey: dto.providerKey,
+          status: "IMPORTED",
+          periodStart: new Date(dto.periodStart),
+          periodEnd: new Date(dto.periodEnd),
+          totalAmount: dto.totalAmount ?? "0.00",
+          settledAmount: dto.settledAmount ?? dto.totalAmount ?? "0.00",
+          summary: dto.summary ? (dto.summary as Prisma.InputJsonObject) : Prisma.JsonNull,
+          importedAt: new Date()
+        }
+      });
+
+      await this.domainEvents.record(tx, {
+        tenantId,
+        eventName: "payment.settlement_imported",
+        aggregate: "payment_settlement",
+        aggregateId: created.id,
+        payload: {
+          providerKey: created.providerKey,
+          periodStart: created.periodStart.toISOString(),
+          periodEnd: created.periodEnd.toISOString()
+        }
+      });
+
+      return mapPaymentSettlement(created);
+    });
+  }
+
+  listWebhookEvents(
+    context: RequestContext,
+    query: PaymentWebhookQueryDto
+  ): Promise<ListResponse<PaymentWebhookEventDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+
+      const items = await tx.paymentWebhookEvent.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.providerKey ? { providerKey: query.providerKey } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      return {
+        items: items.map(mapWebhookEvent),
+        total: items.length
+      };
+    });
+  }
+
+  async receiveWebhook(
+    context: RequestContext,
+    providerKey: string,
+    dto: ReceivePaymentWebhookDto
+  ): Promise<PaymentWebhookEventDto> {
+    const result = await this.dbContext.withRequestContext(context, async (tx) => {
+      const existing = await tx.paymentWebhookEvent.findFirst({
+        where: {
+          providerKey,
+          deliveryId: dto.deliveryId
+        }
+      });
+      if (existing) {
+        return { event: existing, autoConfirmOrderId: null as string | null };
+      }
+
+      const providerConfig = await tx.paymentProviderConfig.findFirstOrThrow({
+        where: {
+          providerKey,
+          ...(dto.tenantId ? { tenantId: dto.tenantId } : {}),
+          enabled: true
+        },
+        orderBy: [{ storeId: "desc" }, { priority: "asc" }]
+      });
+      const resolvedConfig = this.mapPersistedProviderConfig(providerConfig);
+      const webhook = resolvePaymentWebhook(
+        {
+          providerKey,
+          providerType: providerConfig.providerType,
+          method: providerConfig.method,
+          settings: resolvedConfig.settings,
+          secrets: providerConfig.settings && typeof providerConfig.settings === "object"
+            ? resolveProviderConfigSettings(
+                providerConfig.settings as Record<string, unknown>,
+                this.env.JWT_ACCESS_SECRET
+              ).resolvedSecrets
+            : null
+        },
+        {
+          signature: dto.signature ?? null,
+          eventType: dto.eventType,
+          payload: dto.payload
+        }
+      );
+
+      const baseEvent = await tx.paymentWebhookEvent.create({
+        data: {
+          tenantId: providerConfig.tenantId,
+          storeId: providerConfig.storeId,
+          providerKey,
+          deliveryId: dto.deliveryId,
+          eventType: dto.eventType,
+          status: webhook.signatureValid ? "RECEIVED" : "FAILED",
+          signatureValid: webhook.signatureValid,
+          payload: dto.payload as Prisma.InputJsonObject,
+          failureReason: webhook.signatureValid ? null : "Invalid webhook signature"
+        }
+      });
+
+      if (!webhook.signatureValid) {
+        return { event: baseEvent, autoConfirmOrderId: null as string | null };
+      }
+
+      let autoConfirmOrderId: string | null = null;
+      if (!webhook.externalReference) {
+        const failed = await tx.paymentWebhookEvent.update({
+          where: { id: baseEvent.id },
+          data: {
+            status: "FAILED",
+            failureReason: "Webhook externalReference is required"
+          }
+        });
+        return { event: failed, autoConfirmOrderId };
+      }
+
+      if (webhook.entityType === "PAYMENT_ATTEMPT") {
+        const attempt = await tx.paymentAttempt.findFirst({
+          where: {
+            providerKey,
+            externalReference: webhook.externalReference
+          }
+        });
+        if (!attempt) {
+          const failed = await tx.paymentWebhookEvent.update({
+            where: { id: baseEvent.id },
+            data: {
+              status: "FAILED",
+              failureReason: "Payment attempt was not found for webhook."
+            }
+          });
+          return { event: failed, autoConfirmOrderId };
+        }
+
+        const now = new Date();
+        await tx.paymentAttempt.update({
+          where: { id: attempt.id },
+          data: {
+            status: webhook.outcome === "SUCCEEDED" ? "SUCCEEDED" : "FAILED",
+            responsePayload: webhook.payload as Prisma.InputJsonObject,
+            errorCode: webhook.errorCode,
+            errorMessage: webhook.errorMessage,
+            finishedAt: now
+          }
+        });
+        await tx.paymentAllocation.update({
+          where: { id: attempt.paymentAllocationId },
+          data: {
+            status: webhook.outcome === "SUCCEEDED" ? "COMPLETED" : "FAILED",
+            providerKey,
+            externalReference: webhook.externalReference,
+            completedAt: webhook.outcome === "SUCCEEDED" ? now : null,
+            failedAt: webhook.outcome === "FAILED" ? now : null,
+            failureReason: webhook.errorMessage
+          }
+        });
+
+        const refreshed = await this.loadIntent(tx, attempt.paymentIntentId);
+        const nextState = resolvePaymentIntentState({
+          totalAmount: decimalToString(refreshed.totalAmount) ?? "0.00",
+          allocations: refreshed.allocations.map((item) => ({
+            amount: decimalToString(item.amount) ?? "0.00",
+            status: item.status
+          }))
+        });
+        const intent = await tx.paymentIntent.update({
+          where: { id: refreshed.id },
+          data: {
+            status: nextState.status,
+            paidAmount: nextState.paidAmount
+          },
+          include: {
+            allocations: {
+              orderBy: { createdAt: "asc" }
+            },
+            order: true
+          }
+        });
+        if (
+          intent.status === "COMPLETED" &&
+          resolvedConfig.autoConfirmOrderOnSuccess &&
+          intent.order.status === "PLACED"
+        ) {
+          autoConfirmOrderId = intent.orderId;
+        }
+      } else {
+        const operation = await tx.paymentOperation.findFirst({
+          where: {
+            providerKey,
+            externalReference: webhook.externalReference
+          }
+        });
+        if (!operation) {
+          const failed = await tx.paymentWebhookEvent.update({
+            where: { id: baseEvent.id },
+            data: {
+              status: "FAILED",
+              failureReason: "Payment operation was not found for webhook."
+            }
+          });
+          return { event: failed, autoConfirmOrderId };
+        }
+        const now = new Date();
+        await tx.paymentOperation.update({
+          where: { id: operation.id },
+          data: {
+            status: webhook.outcome === "SUCCEEDED" ? "COMPLETED" : "FAILED",
+            responsePayload: webhook.payload as Prisma.InputJsonObject,
+            processedAt: now
+          }
+        });
+        await tx.order.update({
+          where: { id: operation.orderId },
+          data: {
+            refundStatus: webhook.outcome === "SUCCEEDED" ? "NOT_REQUIRED" : "PENDING_MANUAL"
+          }
+        });
+      }
+
+      await tx.connectorExecutionLog.create({
+        data: {
+          tenantId: providerConfig.tenantId,
+          storeId: providerConfig.storeId,
+          connectorKind: "PAYMENT_PROVIDER",
+          connectorKey: providerKey,
+          action: "webhook",
+          status: webhook.outcome === "SUCCEEDED" ? "COMPLETED" : "FAILED",
+          requestPayload: dto.payload as Prisma.InputJsonObject,
+          responsePayload: webhook.payload as Prisma.InputJsonObject,
+          errorMessage: webhook.errorMessage,
+          finishedAt: new Date()
+        }
+      });
+
+      const processed = await tx.paymentWebhookEvent.update({
+        where: { id: baseEvent.id },
+        data: {
+          status: "PROCESSED",
+          processedAt: new Date()
+        }
+      });
+      return { event: processed, autoConfirmOrderId };
+    });
+
+    if (result.autoConfirmOrderId) {
+      await this.ordersService.transitionOrder(context, result.autoConfirmOrderId, {
+        toStatus: "CONFIRMED"
+      });
+    }
+
+    return mapWebhookEvent(result.event);
+  }
+
+  listConnectorExecutions(
+    context: RequestContext,
+    query: PaymentWebhookQueryDto
+  ): Promise<ListResponse<ConnectorExecutionLogDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+
+      const items = await tx.connectorExecutionLog.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.providerKey ? { connectorKey: query.providerKey } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      return {
+        items: items.map(mapConnectorExecution),
+        total: items.length
+      };
+    });
+  }
+
+  listHardwareJobs(
+    context: RequestContext,
+    query: HardwareJobsQueryDto
+  ): Promise<ListResponse<HardwareJobDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+
+      const items = await tx.hardwareJob.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.orderId ? { orderId: query.orderId } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      return {
+        items: items.map(mapHardwareJob),
+        total: items.length
+      };
+    });
+  }
+
+  async createHardwareJob(
+    context: RequestContext,
+    dto: CreateHardwareJobDto
+  ): Promise<HardwareJobDto> {
+    const created = await this.dbContext.withRequestContext(context, async (tx) => {
+      const tenantId = this.accessControl.resolveTenantId(context, dto.tenantId ?? context.tenantId);
+      this.accessControl.enforceStoreAccess(context, dto.storeId);
+
+      const job = await tx.hardwareJob.create({
+        data: {
+          tenantId,
+          storeId: dto.storeId,
+          orderId: dto.orderId ?? null,
+          deviceId: dto.deviceId ?? null,
+          connectorKey: dto.connectorKey,
+          kind: dto.kind,
+          status: "PENDING",
+          requestPayload: dto.requestPayload
+            ? (dto.requestPayload as Prisma.InputJsonObject)
+            : Prisma.JsonNull,
+          createdByUserId: context.scope === "device" ? null : context.userId
+        }
+      });
+
+      const shouldFail = dto.requestPayload?.forceFailure === true;
+      const now = new Date();
+      const updated = await tx.hardwareJob.update({
+        where: { id: job.id },
+        data: {
+          status: shouldFail ? "FAILED" : "COMPLETED",
+          failureReason: shouldFail ? "Hardware adapter simulated failure." : null,
+          resultPayload: {
+            completed: !shouldFail,
+            connectorKey: dto.connectorKey,
+            kind: dto.kind
+          } as Prisma.InputJsonObject,
+          finishedAt: now
+        }
+      });
+
+      if (!shouldFail) {
+        await tx.hardwareReceipt.create({
+          data: {
+            tenantId,
+            storeId: dto.storeId,
+            hardwareJobId: updated.id,
+            orderId: dto.orderId ?? null,
+            receiptType: dto.kind,
+            externalReference: `${dto.connectorKey}-${updated.id.slice(0, 8)}`,
+            payload: {
+              connectorKey: dto.connectorKey,
+              kind: dto.kind
+            } as Prisma.InputJsonObject
+          }
+        });
+      }
+
+      await tx.connectorExecutionLog.create({
+        data: {
+          tenantId,
+          storeId: dto.storeId,
+          connectorKind:
+            dto.kind === "SCANNER_SYNC"
+              ? "SCANNER_BRIDGE"
+              : dto.kind === "TERMINAL_CAPTURE"
+                ? "TERMINAL_BRIDGE"
+                : dto.kind === "PRINT_RECEIPT"
+                  ? "PRINTER_ADAPTER"
+                  : "FISCAL_ADAPTER",
+          connectorKey: dto.connectorKey,
+          action: "hardware_job",
+          status: shouldFail ? "FAILED" : "COMPLETED",
+          requestPayload: dto.requestPayload
+            ? (dto.requestPayload as Prisma.InputJsonObject)
+            : Prisma.JsonNull,
+          responsePayload: {
+            hardwareJobId: updated.id,
+            status: updated.status
+          } as Prisma.InputJsonObject,
+          errorMessage: shouldFail ? "Hardware adapter simulated failure." : null,
+          finishedAt: now
+        }
+      });
+
+      return updated;
+    });
+
+    return mapHardwareJob(created);
+  }
+
+  listHardwareReceipts(
+    context: RequestContext,
+    query: HardwareJobsQueryDto
+  ): Promise<ListResponse<HardwareReceiptDto>> {
+    return this.dbContext.withRequestContext(context, async (tx) => {
+      if (query.storeId) {
+        this.accessControl.enforceStoreAccess(context, query.storeId);
+      }
+      const items = await tx.hardwareReceipt.findMany({
+        where: {
+          ...this.accessControl.tenantWhere(context, query.tenantId),
+          ...(query.storeId ? { storeId: query.storeId } : {}),
+          ...(query.orderId ? { orderId: query.orderId } : {})
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      return {
+        items: items.map(mapHardwareReceipt),
+        total: items.length
       };
     });
   }
@@ -1456,6 +2493,107 @@ class PaymentsController {
     @Query() query: PaymentSummaryQueryDto
   ): Promise<PaymentReconciliationSummaryDto> {
     return this.paymentsService.reconciliationSummary(context, query);
+  }
+
+  @Get("operations")
+  @Permissions("payments.read")
+  listOperations(
+    @CurrentContext() context: RequestContext,
+    @Query() query: PaymentOperationsQueryDto
+  ): Promise<ListResponse<PaymentOperationDto>> {
+    return this.paymentsService.listOperations(context, query);
+  }
+
+  @Post("operations")
+  @Permissions("payments.write")
+  createOperation(
+    @CurrentContext() context: RequestContext,
+    @Body() dto: CreatePaymentOperationDto
+  ): Promise<PaymentOperationDto> {
+    return this.paymentsService.createOperation(context, dto);
+  }
+
+  @Get("settlements")
+  @Permissions("payments.read")
+  listSettlements(
+    @CurrentContext() context: RequestContext,
+    @Query() query: PaymentSettlementsQueryDto
+  ): Promise<ListResponse<PaymentSettlementDto>> {
+    return this.paymentsService.listSettlements(context, query);
+  }
+
+  @Post("settlements")
+  @Permissions("payments.write")
+  createSettlement(
+    @CurrentContext() context: RequestContext,
+    @Body() dto: CreatePaymentSettlementDto
+  ): Promise<PaymentSettlementDto> {
+    return this.paymentsService.createSettlement(context, dto);
+  }
+
+  @Get("webhooks")
+  @Permissions("payments.read")
+  listWebhooks(
+    @CurrentContext() context: RequestContext,
+    @Query() query: PaymentWebhookQueryDto
+  ): Promise<ListResponse<PaymentWebhookEventDto>> {
+    return this.paymentsService.listWebhookEvents(context, query);
+  }
+
+  @Post("webhooks/:providerKey")
+  @Public()
+  receiveWebhook(
+    @Param("providerKey") providerKey: string,
+    @Body() dto: ReceivePaymentWebhookDto
+  ): Promise<PaymentWebhookEventDto> {
+    return this.paymentsService.receiveWebhook(this.buildWebhookContext(dto), providerKey, dto);
+  }
+
+  @Get("connector-executions")
+  @Permissions("payments.read")
+  listConnectorExecutions(
+    @CurrentContext() context: RequestContext,
+    @Query() query: PaymentWebhookQueryDto
+  ): Promise<ListResponse<ConnectorExecutionLogDto>> {
+    return this.paymentsService.listConnectorExecutions(context, query);
+  }
+
+  @Get("hardware/jobs")
+  @Permissions("payments.read")
+  listHardwareJobs(
+    @CurrentContext() context: RequestContext,
+    @Query() query: HardwareJobsQueryDto
+  ): Promise<ListResponse<HardwareJobDto>> {
+    return this.paymentsService.listHardwareJobs(context, query);
+  }
+
+  @Post("hardware/jobs")
+  @Permissions("payments.write")
+  createHardwareJob(
+    @CurrentContext() context: RequestContext,
+    @Body() dto: CreateHardwareJobDto
+  ): Promise<HardwareJobDto> {
+    return this.paymentsService.createHardwareJob(context, dto);
+  }
+
+  @Get("hardware/receipts")
+  @Permissions("payments.read")
+  listHardwareReceipts(
+    @CurrentContext() context: RequestContext,
+    @Query() query: HardwareJobsQueryDto
+  ): Promise<ListResponse<HardwareReceiptDto>> {
+    return this.paymentsService.listHardwareReceipts(context, query);
+  }
+
+  private buildWebhookContext(dto: ReceivePaymentWebhookDto): RequestContext {
+    return {
+      userId: "system:webhook",
+      tenantId: dto.tenantId ?? null,
+      scope: "platform_admin",
+      roleIds: [],
+      permissions: [],
+      storeIds: dto.storeId ? [dto.storeId] : []
+    };
   }
 }
 

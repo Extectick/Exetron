@@ -37,6 +37,7 @@ import {
   ValidateNested
 } from "class-validator";
 import { AuditModule, AuditService } from "../audit/audit.module";
+import { BillingModule, BillingService } from "../billing/billing.module";
 import { APP_ENV } from "../common/app-env.provider";
 import { AccessControlService } from "../common/access-control.service";
 import { CurrentContext } from "../common/decorators/current-context.decorator";
@@ -128,7 +129,8 @@ class OnboardingService {
     private readonly dbContext: DatabaseContextService,
     private readonly accessControl: AccessControlService,
     private readonly audit: AuditService,
-    private readonly domainEvents: DomainEventsService
+    private readonly domainEvents: DomainEventsService,
+    private readonly billingService: BillingService
   ) {}
 
   createBootstrap(
@@ -227,6 +229,24 @@ class OnboardingService {
         store: this.toStoreDto(store),
         devices
       };
+    }).then(async (response) => {
+      await this.billingService.bootstrap(
+        {
+          ...context,
+          tenantId: response.tenant.id
+        },
+        {
+          tenantId: response.tenant.id,
+          planCode: "starter",
+          planName: "Starter",
+          planPriceAmount: "0.00",
+          currency: "RUB",
+          intervalKey: "MONTHLY",
+          trialDays: 14
+        }
+      );
+
+      return response;
     });
   }
 
@@ -399,7 +419,7 @@ class OnboardingController {
 }
 
 @Module({
-  imports: [AuditModule, DomainEventsModule, JwtModule.register({})],
+  imports: [AuditModule, BillingModule, DomainEventsModule, JwtModule.register({})],
   controllers: [OnboardingController],
   providers: [OnboardingService]
 })

@@ -10,7 +10,7 @@
 Упаковать платформу как продаваемый SaaS product через plans, subscriptions, entitlements, limits, billing accounts, invoicing, trials и reseller support.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 11` and `PHASE 12`
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить plan catalog, subscriptions and billing accounts
-- [ ] Определить entitlements, limits and quotas model
-- [ ] Определить invoicing, trials and reseller support entities
+- [x] Определить plan catalog, subscriptions and billing accounts
+- [x] Определить entitlements, limits and quotas model
+- [x] Определить invoicing, trials and reseller support entities
 
 ## Deliverables
 - plan/subscription model
@@ -36,8 +36,8 @@
 - invoice/trial/reseller model
 
 ## Acceptance
-- [ ] Billing model не дублирует customization or feature flags, а опирается на них
-- [ ] Entitlements and quotas имеют явный scope: tenant, store, device or module
+- [x] Billing model не дублирует customization or feature flags, а опирается на них
+- [x] Entitlements and quotas имеют явный scope: tenant, store, device or module
 
 ## Notes/Risks
 - риск смешать pricing of the product with pricing inside commerce domain
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить subscription lifecycle runtime
-- [ ] Определить entitlement enforcement runtime and limit checks
-- [ ] Определить invoice issuance and trial transition contracts
+- [x] Определить subscription lifecycle runtime
+- [x] Определить entitlement enforcement runtime and limit checks
+- [x] Определить invoice issuance and trial transition contracts
 
 ## Deliverables
 - subscription runtime contract
@@ -57,8 +57,8 @@
 - invoice/trial runtime contract
 
 ## Acceptance
-- [ ] Понятно, где и как применяются entitlements в existing platform modules
-- [ ] Trial and paid transitions имеют явные state changes
+- [x] Понятно, где и как применяются entitlements в existing platform modules
+- [x] Trial and paid transitions имеют явные state changes
 
 ## Notes/Risks
 - риск hardcode plan checks inside random modules
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить self-serve billing surfaces
-- [ ] Определить admin visibility for plans, invoices and quotas
-- [ ] Определить reseller-facing touchpoints
+- [x] Определить self-serve billing surfaces
+- [x] Определить admin visibility for plans, invoices and quotas
+- [x] Определить reseller-facing touchpoints
 
 ## Deliverables
 - self-serve billing UI scope
@@ -78,8 +78,8 @@
 - reseller touchpoint scope
 
 ## Acceptance
-- [ ] Billing surfaces не требуют отдельного backend fork
-- [ ] Quota and entitlement visibility соответствует runtime enforcement design
+- [x] Billing surfaces не требуют отдельного backend fork
+- [x] Quota and entitlement visibility соответствует runtime enforcement design
 
 ## Notes/Risks
 - риск преждевременно строить полноценный finance backoffice
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить async hooks для billing events and invoice generation
-- [ ] Определить security boundaries для billing data and reseller access
-- [ ] Определить extension points для future external billing providers without integrating them now
+- [x] Определить async hooks для billing events and invoice generation
+- [x] Определить security boundaries для billing data and reseller access
+- [x] Определить extension points для future external billing providers without integrating them now
 
 ## Deliverables
 - billing async event map
@@ -99,8 +99,8 @@
 - billing provider extension points
 
 ## Acceptance
-- [ ] Billing events могут быть обработаны отдельно от request-response path
-- [ ] Security policy покрывает owner, admin and reseller access boundaries
+- [x] Billing events могут быть обработаны отдельно от request-response path
+- [x] Security policy покрывает owner, admin and reseller access boundaries
 
 ## Notes/Risks
 - риск игнорировать auditability для commercial actions
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для plans, subscriptions, entitlements, quotas, invoices, trials and reseller support
-- [ ] Обновить tracker после первых monetization deliverables
-- [ ] Добавить ADR при изменении entitlement architecture or billing ownership model
+- [x] Зафиксировать acceptance scenarios для plans, subscriptions, entitlements, quotas, invoices, trials and reseller support
+- [x] Обновить tracker после первых monetization deliverables
+- [x] Добавить ADR при изменении entitlement architecture or billing ownership model
 
 ## Deliverables
 - monetization acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if needed
 
 ## Acceptance
-- [ ] Все backlog items PHASE 17 покрыты ровно в этой фазе
-- [ ] Документы позволяют реализовать monetization engine по частям без рассыпания core
+- [x] Все backlog items PHASE 17 покрыты ровно в этой фазе
+- [x] Документы позволяют реализовать monetization engine по частям без рассыпания core
 
 ## Notes/Risks
 - риск не описать downgrade, suspension and reactivation cases
@@ -130,7 +130,12 @@
 ---
 
 ## Done
-- _пусто_
+- billing foundation переведен на dedicated billing tables из schema (`BillingPlan`, `BillingAccount`, `Subscription`, `Invoice`, `EntitlementGrant`, `QuotaCounter`, `TrialGrant`, `ResellerAccount`) с runtime bootstrap до migration consolidation
+- onboarding bootstrap теперь автоматически создает starter billing account/subscription/trial для нового tenant, не требуя отдельного billing bootstrap шага после PHASE 11 onboarding
+- добавлены permissions `billing.read/write`, thin admin page `/billing` и e2e `phase17-billing`
+- billing actions audit-friendly: create/update paths пишут audit и domain events через existing foundation
+- forward-only Prisma migration `20260319203427_phase16_20_storage_consolidation` теперь formalizes phase17 billing tables for clean databases
+- post-migration cleanup: phase17 runtime bootstrap DDL удален; billing runtime теперь strictly migration-first
 
 ## In Progress
 - _пусто_
@@ -139,14 +144,12 @@
 - _пусто_
 
 ## Next
-- Определить plans/subscriptions model
-- Зафиксировать entitlements and limits
-- Определить billing accounts, invoicing, trials and reseller contracts
+- сохранить migration-first billing baseline и не возвращать settings/bootstrap fallback
 
 ## Phase Exit Summary
-- [ ] Subscription plans определены
-- [ ] Entitlements определены
-- [ ] Limits and quotas определены
-- [ ] Billing accounts and invoices определены
-- [ ] Trials и reseller support определены
-- [ ] Progress tracker обновлен
+- [x] Subscription plans определены
+- [x] Entitlements определены
+- [x] Limits and quotas определены
+- [x] Billing accounts and invoices определены
+- [x] Trials и reseller support определены
+- [x] Progress tracker обновлен

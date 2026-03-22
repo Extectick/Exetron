@@ -20,6 +20,9 @@ export const adminNavigation: AdminNavItem[] = [
   { href: "/payment-provider-configs", label: "Payment Configs" },
   { href: "/payments", label: "Payments" },
   { href: "/payment-reconciliation", label: "Reconciliation" },
+  { href: "/integrations", label: "Integrations" },
+  { href: "/billing", label: "Billing" },
+  { href: "/inventory", label: "Inventory" },
   { href: "/kitchen", label: "Kitchen" },
   { href: "/order-board", label: "Order Board" },
   { href: "/fulfillment", label: "Fulfillment" },
@@ -27,5 +30,7 @@ export const adminNavigation: AdminNavItem[] = [
   { href: "/localization", label: "Localization" },
   { href: "/feature-flags", label: "Feature Flags" },
   { href: "/customization", label: "Customization" },
+  { href: "/organizations", label: "Organizations" },
+  { href: "/enterprise", label: "Enterprise" },
   { href: "/audit", label: "Audit Trail" }
 ];

@@ -20,6 +20,8 @@ export interface PaymentProviderSettings {
   externalReferencePrefix?: string;
   failureCode?: string;
   failureMessage?: string;
+  adapterMode?: string;
+  webhookSecret?: string;
 }
 
 export function validatePaymentAllocations(

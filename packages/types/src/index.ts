@@ -120,6 +120,102 @@ export const paymentProviderTypes = [
 ] as const;
 export type PaymentProviderType = (typeof paymentProviderTypes)[number];
 
+export const paymentOperationKinds = ["REFUND", "VOID"] as const;
+export type PaymentOperationKind = (typeof paymentOperationKinds)[number];
+
+export const paymentOperationStatuses = [
+  "PENDING",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED"
+] as const;
+export type PaymentOperationStatus = (typeof paymentOperationStatuses)[number];
+
+export const paymentSettlementStatuses = [
+  "OPEN",
+  "IMPORTED",
+  "RECONCILED",
+  "FAILED"
+] as const;
+export type PaymentSettlementStatus = (typeof paymentSettlementStatuses)[number];
+
+export const paymentWebhookStatuses = [
+  "RECEIVED",
+  "PROCESSED",
+  "DUPLICATE",
+  "FAILED"
+] as const;
+export type PaymentWebhookStatus = (typeof paymentWebhookStatuses)[number];
+
+export const connectorKinds = [
+  "PAYMENT_PROVIDER",
+  "FISCAL_ADAPTER",
+  "PRINTER_ADAPTER",
+  "TERMINAL_BRIDGE",
+  "SCANNER_BRIDGE",
+  "SUPPLIER_ADAPTER"
+] as const;
+export type ConnectorKind = (typeof connectorKinds)[number];
+
+export const connectorExecutionStatuses = ["PENDING", "COMPLETED", "FAILED"] as const;
+export type ConnectorExecutionStatus = (typeof connectorExecutionStatuses)[number];
+
+export const hardwareJobKinds = [
+  "FISCAL_RECEIPT",
+  "PRINT_RECEIPT",
+  "TERMINAL_CAPTURE",
+  "SCANNER_SYNC"
+] as const;
+export type HardwareJobKind = (typeof hardwareJobKinds)[number];
+
+export const hardwareJobStatuses = ["PENDING", "COMPLETED", "FAILED", "CANCELLED"] as const;
+export type HardwareJobStatus = (typeof hardwareJobStatuses)[number];
+
+export const planStatuses = ["ACTIVE", "ARCHIVED"] as const;
+export type PlanStatus = (typeof planStatuses)[number];
+
+export const subscriptionStatuses = [
+  "TRIAL",
+  "ACTIVE",
+  "GRACE",
+  "SUSPENDED",
+  "CANCELLED"
+] as const;
+export type SubscriptionStatus = (typeof subscriptionStatuses)[number];
+
+export const invoiceStatuses = ["DRAFT", "ISSUED", "PAID", "VOID"] as const;
+export type InvoiceStatus = (typeof invoiceStatuses)[number];
+
+export const trialStatuses = ["ACTIVE", "CONVERTED", "EXPIRED"] as const;
+export type TrialStatus = (typeof trialStatuses)[number];
+
+export const inventoryLedgerKinds = [
+  "RECEIPT",
+  "RESERVE",
+  "RELEASE",
+  "CONSUME",
+  "ADJUST"
+] as const;
+export type InventoryLedgerKind = (typeof inventoryLedgerKinds)[number];
+
+export const receivingStatuses = ["PENDING", "COMPLETED", "CANCELLED"] as const;
+export type ReceivingStatus = (typeof receivingStatuses)[number];
+
+export const inventoryAdjustmentKinds = ["INCREASE", "DECREASE", "SET"] as const;
+export type InventoryAdjustmentKind = (typeof inventoryAdjustmentKinds)[number];
+
+export const organizationStatuses = ["ACTIVE", "ARCHIVED"] as const;
+export type OrganizationStatus = (typeof organizationStatuses)[number];
+
+export const identityProviderTypes = ["OIDC", "SAML"] as const;
+export type IdentityProviderType = (typeof identityProviderTypes)[number];
+
+export const identityProviderStatuses = ["ACTIVE", "DISABLED"] as const;
+export type IdentityProviderStatus = (typeof identityProviderStatuses)[number];
+
+export const auditExportStatuses = ["PENDING", "COMPLETED", "FAILED"] as const;
+export type AuditExportStatus = (typeof auditExportStatuses)[number];
+
 export const kitchenTicketStatuses = [
   "NEW",
   "IN_PROGRESS",

@@ -1,21 +1,33 @@
 import type {
   AppScope,
   AnalyticsSnapshotKind,
+  AuditExportStatus,
   AvailabilityTargetType,
   CartStatus,
   CatalogTargetType,
+  ConnectorExecutionStatus,
+  ConnectorKind,
   CustomerProfileStatus,
   CustomizationChannel,
   CustomizationRuleStatus,
   DeviceKind,
   FulfillmentMode,
   FulfillmentStatus,
+  HardwareJobKind,
+  HardwareJobStatus,
+  IdentityProviderStatus,
+  IdentityProviderType,
+  InvoiceStatus,
+  InventoryAdjustmentKind,
+  InventoryLedgerKind,
   JwtClaims,
   KitchenBoardStatus,
   KioskPaymentHandoffStatus,
   LoyaltyLedgerEntryKind,
+  OrganizationStatus,
   PaymentAllocationStatus,
   PaymentAttemptStatus,
+  PaymentOperationKind,
   KitchenTicketStatus,
   ModifierSelectionMode,
   OrderChannel,
@@ -24,11 +36,16 @@ import type {
   PaymentMethodKind,
   PaymentProviderType,
   PaginationResult,
+  PaymentOperationStatus,
+  PaymentSettlementStatus,
+  PaymentWebhookStatus,
+  PlanStatus,
   PriceSource,
   PromotionStatus,
   PromotionType,
   PosSessionStatus,
   PosShiftStatus,
+  ReceivingStatus,
   RefundStatus
 } from "@exetron/types";
 
@@ -1245,6 +1262,25 @@ export interface StorefrontCustomerOrderListItemDto {
 
 export type ListResponse<TItem> = PaginationResult<TItem>;
 
+export interface OperatorListQuery {
+  tenantId?: string;
+  organizationId?: string;
+  status?: string;
+  search?: string;
+  sort?: string;
+  direction?: "asc" | "desc";
+  page?: number;
+  pageSize?: number;
+}
+
+export interface OperatorListResponse<TItem> extends PaginationResult<TItem> {
+  page: number;
+  pageSize: number;
+  sort: string | null;
+  direction: "asc" | "desc" | null;
+  filter: Record<string, unknown> | null;
+}
+
 export interface CreateTenantRequest {
   slug: string;
   name: string;
@@ -1906,6 +1942,1692 @@ export interface AdminNavItem {
   href: string;
   label: string;
   requiredScope?: AppScope;
+}
+
+export interface PaymentOperationDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  paymentIntentId: string;
+  paymentAllocationId: string | null;
+  orderId: string;
+  kind: PaymentOperationKind;
+  status: PaymentOperationStatus;
+  amount: string;
+  currency: string;
+  providerKey: string;
+  externalReference: string | null;
+  reason: string | null;
+  requestPayload: Record<string, unknown> | null;
+  responsePayload: Record<string, unknown> | null;
+  processedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSettlementDto {
+  id: string;
+  tenantId: string;
+  storeId: string | null;
+  providerKey: string;
+  status: PaymentSettlementStatus;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  totalAmount: string;
+  settledAmount: string;
+  summary: Record<string, unknown> | null;
+  importedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentWebhookEventDto {
+  id: string;
+  tenantId: string | null;
+  storeId: string | null;
+  providerKey: string;
+  deliveryId: string;
+  eventType: string;
+  status: PaymentWebhookStatus;
+  signatureValid: boolean;
+  payload: Record<string, unknown>;
+  processedAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export interface ConnectorExecutionLogDto {
+  id: string;
+  tenantId: string | null;
+  storeId: string | null;
+  connectorKind: ConnectorKind;
+  connectorKey: string;
+  action: string;
+  status: ConnectorExecutionStatus;
+  requestPayload: Record<string, unknown> | null;
+  responsePayload: Record<string, unknown> | null;
+  errorMessage: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface HardwareJobDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string | null;
+  deviceId: string | null;
+  connectorKey: string;
+  kind: HardwareJobKind;
+  status: HardwareJobStatus;
+  requestPayload: Record<string, unknown> | null;
+  resultPayload: Record<string, unknown> | null;
+  failureReason: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HardwareReceiptDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  hardwareJobId: string | null;
+  orderId: string | null;
+  receiptType: string;
+  externalReference: string | null;
+  payload: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface BillingPlanDto {
+  id: string;
+  code: string;
+  name: string;
+  status: PlanStatus;
+  priceAmount: string;
+  currency: string;
+  intervalKey: string;
+  entitlements: Record<string, unknown>;
+  quotas: Record<string, unknown>;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingAccountDto {
+  id: string;
+  tenantId: string;
+  resellerAccountId: string | null;
+  status: string;
+  defaultPaymentTerms: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubscriptionDto {
+  id: string;
+  tenantId: string;
+  billingAccountId: string;
+  planId: string;
+  status: "TRIAL" | "ACTIVE" | "GRACE" | "SUSPENDED" | "CANCELLED";
+  startedAt: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelledAt: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceDto {
+  id: string;
+  tenantId: string;
+  billingAccountId: string;
+  subscriptionId: string | null;
+  number: string;
+  status: InvoiceStatus;
+  currency: string;
+  subtotalAmount: string;
+  totalAmount: string;
+  dueAt: string | null;
+  issuedAt: string | null;
+  paidAt: string | null;
+  lines: Array<Record<string, unknown>>;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EntitlementGrantDto {
+  id: string;
+  tenantId: string;
+  subscriptionId: string | null;
+  key: string;
+  scopeType: string;
+  scopeId: string | null;
+  value: Record<string, unknown>;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuotaCounterDto {
+  id: string;
+  tenantId: string;
+  subscriptionId: string | null;
+  key: string;
+  scopeType: string;
+  scopeId: string | null;
+  limitValue: number;
+  usedValue: number;
+  resetAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrialGrantDto {
+  id: string;
+  tenantId: string;
+  subscriptionId: string | null;
+  status: "ACTIVE" | "CONVERTED" | "EXPIRED";
+  startedAt: string;
+  endsAt: string;
+  convertedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResellerAccountDto {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BillingOverviewDto {
+  billingAccount: BillingAccountDto;
+  subscription: SubscriptionDto | null;
+  trial: TrialGrantDto | null;
+  invoices: InvoiceDto[];
+  entitlements: EntitlementGrantDto[];
+  quotas: QuotaCounterDto[];
+}
+
+export interface WarehouseDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  code: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IngredientDto {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  unit: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryItemDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  productId: string | null;
+  variantId: string | null;
+  ingredientId: string | null;
+  unit: string;
+  onHandQuantity: string;
+  reservedQuantity: string;
+  availableQuantity: string;
+  reorderPointQuantity: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RecipeBomDto {
+  id: string;
+  tenantId: string;
+  productId: string | null;
+  variantId: string | null;
+  modifierOptionId: string | null;
+  ingredientId: string;
+  quantity: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReceivingRecordDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  reference: string;
+  status: ReceivingStatus;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+}
+
+export interface InventoryAdjustmentDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  kind: InventoryAdjustmentKind;
+  status: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface StockReservationDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  orderId: string;
+  inventoryItemId: string;
+  quantity: string;
+  status: string;
+  releasedAt: string | null;
+  consumedAt: string | null;
+  createdAt: string;
+}
+
+export interface StockLedgerEntryDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  inventoryItemId: string;
+  orderId: string | null;
+  kind: InventoryLedgerKind;
+  quantityDelta: string;
+  balanceAfter: string;
+  reason: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface StopListRuleDto {
+  id: string;
+  tenantId: string;
+  storeId: string;
+  targetType: string;
+  targetId: string;
+  source: string;
+  reason: string | null;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationDto {
+  id: string;
+  code: string;
+  name: string;
+  status: OrganizationStatus;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationMembershipDto {
+  id: string;
+  organizationId: string;
+  userId: string;
+  roleKey: string;
+  createdAt: string;
+}
+
+export interface OrganizationTenantLinkDto {
+  id: string;
+  organizationId: string;
+  tenantId: string;
+  roleKey: string;
+  createdAt: string;
+}
+
+export interface GovernancePolicyDto {
+  id: string;
+  organizationId: string;
+  policyKey: string;
+  rules: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RolloutTemplateDto {
+  id: string;
+  organizationId: string;
+  code: string;
+  name: string;
+  artifact: Record<string, unknown>;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TemplateApplicationDto {
+  id: string;
+  templateId: string;
+  tenantId: string | null;
+  storeId: string | null;
+  appliedVersion: number;
+  resultSummary: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface WhiteLabelPackDto {
+  id: string;
+  organizationId: string | null;
+  tenantId: string | null;
+  code: string;
+  name: string;
+  artifact: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerAccountDto {
+  id: string;
+  organizationId: string | null;
+  tenantId: string | null;
+  code: string;
+  name: string;
+  status: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrganizationOverviewDto {
+  organization: OrganizationDto;
+  summary: {
+    membershipCount: number;
+    tenantLinkCount: number;
+    governancePolicyCount: number;
+    rolloutTemplateCount: number;
+    templateApplicationCount: number;
+    whiteLabelPackCount: number;
+    partnerAccountCount: number;
+  };
+  statuses: {
+    governancePolicies: Record<string, number>;
+    rolloutTemplates: Record<string, number>;
+    templateApplications: Record<string, number>;
+    whiteLabelPacks: Record<string, number>;
+    partnerAccounts: Record<string, number>;
+  };
+  latest: {
+    governancePolicy: GovernancePolicyDto | null;
+    rolloutTemplate: RolloutTemplateDto | null;
+    templateApplication: TemplateApplicationDto | null;
+    whiteLabelPack: WhiteLabelPackDto | null;
+    partnerAccount: PartnerAccountDto | null;
+  };
+  coverage: {
+    memberUserIds: string[];
+    linkedTenantIds: string[];
+    linkedStoreIds: string[];
+  };
+}
+
+export interface EnterpriseIdentityProviderDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  code: string;
+  type: IdentityProviderType;
+  status: IdentityProviderStatus;
+  config: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FederatedIdentityLinkDto {
+  id: string;
+  identityProviderId: string;
+  userId: string;
+  externalSubject: string;
+  email: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdvancedRolePolicyDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  key: string;
+  rules: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditExportJobDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  status: AuditExportStatus;
+  filter: Record<string, unknown> | null;
+  artifact: Record<string, unknown> | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CompliancePackDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  code: string;
+  name: string;
+  status: string;
+  controls: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ComplianceEvidenceArtifactDto {
+  id: string;
+  compliancePackId: string | null;
+  tenantId: string | null;
+  organizationId: string | null;
+  key: string;
+  artifact: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface SecretRegistryEntryDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  scopeType: string;
+  scopeId: string | null;
+  key: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeploymentVariantDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  code: string;
+  name: string;
+  status: string;
+  config: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PartnerSdkContractDto {
+  id: string;
+  partnerAccountId: string | null;
+  key: string;
+  version: string;
+  status: string;
+  schema: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationRegistryEntryDto {
+  id: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  connectorKey: string;
+  version: string;
+  status: string;
+  manifest: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConnectorTemplateDto {
+  id: string;
+  connectorKey: string;
+  version: string;
+  manifest: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EnterpriseDeveloperPackageDto {
+  connectorKey: string;
+  version: string;
+  packageFileName: string;
+  contentType: string;
+  compatibility: {
+    templateVersion: string | null;
+    partnerContractVersions: string[];
+    rolloutChannel: string;
+    supportsBackwardCompatibility: boolean;
+  };
+  lifecycle: {
+    status: string;
+    deprecationStage: string;
+    sunsetAt: string | null;
+  };
+  registryEntry: IntegrationRegistryEntryDto;
+  connectorTemplate: ConnectorTemplateDto | null;
+  partnerSdkContracts: PartnerSdkContractDto[];
+  content: string;
+}
+
+export interface EnterpriseDeveloperDocsDto {
+  connectorKey: string;
+  version: string;
+  title: string;
+  summary: string;
+  sections: Array<{
+    title: string;
+    body: string;
+  }>;
+  markdown: string;
+}
+
+export interface IntegrationPublicationDto {
+  id: string;
+  registryEntryId: string;
+  tenantId: string | null;
+  organizationId: string | null;
+  connectorKey: string;
+  version: string;
+  visibility: string;
+  channel: string;
+  status: string;
+  packageFileName: string;
+  docsFileName: string;
+  artifact: {
+    package: EnterpriseDeveloperPackageDto;
+    docs: EnterpriseDeveloperDocsDto;
+  };
+  attestation: {
+    algorithm: string;
+    artifactDigest: string;
+    packageDigest: string;
+    docsDigest: string;
+    signatureAlgorithm: string | null;
+    signature: string | null;
+    signatureStatus: string;
+    keyRef: string | null;
+    payload: string;
+    signedAt: string | null;
+  };
+  publishedByUserId: string | null;
+  publishedAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationPublicationEventDto {
+  id: string;
+  publicationId: string;
+  eventType: string;
+  actorType: string;
+  actorKey: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface EnterprisePublicPublicationDto {
+  connectorKey: string;
+  version: string;
+  visibility: string;
+  channel: string;
+  status: string;
+  packageFileName: string;
+  docsFileName: string;
+  publishedAt: string;
+  revokedAt: string | null;
+  packageUrl: string;
+  docsUrl: string;
+  attestation: {
+    algorithm: string;
+    artifactDigest: string;
+    packageDigest: string;
+    docsDigest: string;
+    signatureAlgorithm: string | null;
+    signature: string | null;
+    signatureStatus: string;
+    keyRef: string | null;
+    payload: string;
+    signedAt: string | null;
+  };
+}
+
+export interface IntegrationPublicationReadinessDto {
+  registryEntryId: string;
+  connectorKey: string;
+  version: string;
+  targetVisibility: string;
+  targetChannel: string;
+  canPublish: boolean;
+  checks: {
+    hasConnectorTemplate: boolean;
+    hasVersionScopedPartnerContract: boolean;
+    publicAccessAllowed: boolean;
+    signatureAvailable: boolean;
+    signatureRequired: boolean;
+    channelAllowed: boolean;
+  };
+  distributionPolicy: {
+    publicAccess: boolean;
+    requireSignedPublications: boolean;
+    allowedChannels: string[];
+  };
+  blockingIssues: string[];
+  warnings: string[];
+}
+
+export interface IntegrationPublicationAnalyticsDto {
+  publicationId: string;
+  connectorKey: string;
+  version: string;
+  status: string;
+  visibility: string;
+  channel: string;
+  totals: {
+    totalEvents: number;
+    publicMetadataFetches: number;
+    publicPackageFetches: number;
+    publicDocsFetches: number;
+    partnerMetadataFetches: number;
+    partnerPackageFetches: number;
+    partnerDocsFetches: number;
+    operatorDownloads: number;
+    operatorDocsViews: number;
+    accessRequests: number;
+    pendingAccessRequests: number;
+    approvedAccessRequests: number;
+    rejectedAccessRequests: number;
+    revokedAccessRequests: number;
+    activeGrants: number;
+  };
+  funnel: {
+    requestCount: number;
+    approvedCount: number;
+    pendingCount: number;
+    rejectedCount: number;
+    revokedCount: number;
+    activeGrantCount: number;
+    publicMetadataReach: number;
+    publicPackageReach: number;
+    publicDocsReach: number;
+    partnerMetadataReach: number;
+    partnerPackageReach: number;
+    partnerDocsReach: number;
+    requestApprovalRate: number | null;
+    grantActivationRate: number | null;
+  };
+  windows: {
+    last24Hours: {
+      eventCount: number;
+      metadataFetches: number;
+      packageFetches: number;
+      docsFetches: number;
+      accessRequests: number;
+      approvals: number;
+    };
+    last7Days: {
+      eventCount: number;
+      metadataFetches: number;
+      packageFetches: number;
+      docsFetches: number;
+      accessRequests: number;
+      approvals: number;
+    };
+    last30Days: {
+      eventCount: number;
+      metadataFetches: number;
+      packageFetches: number;
+      docsFetches: number;
+      accessRequests: number;
+      approvals: number;
+    };
+    allTime: {
+      eventCount: number;
+      metadataFetches: number;
+      packageFetches: number;
+      docsFetches: number;
+      accessRequests: number;
+      approvals: number;
+    };
+  };
+  byEventType: Record<string, number>;
+  byActorType: Record<string, number>;
+  topActors: Array<{
+    actorType: string;
+    actorKey: string | null;
+    eventCount: number;
+    lastEventAt: string;
+  }>;
+  topExternalActors: Array<{
+    actorType: string;
+    actorKey: string | null;
+    eventCount: number;
+    lastEventAt: string;
+  }>;
+  latest: {
+    event: IntegrationPublicationEventDto | null;
+    publicMetadataFetch: IntegrationPublicationEventDto | null;
+    publicPackageFetch: IntegrationPublicationEventDto | null;
+    publicDocsFetch: IntegrationPublicationEventDto | null;
+    partnerMetadataFetch: IntegrationPublicationEventDto | null;
+    partnerPackageFetch: IntegrationPublicationEventDto | null;
+    partnerDocsFetch: IntegrationPublicationEventDto | null;
+    accessRequest: IntegrationPublicationEventDto | null;
+    approval: IntegrationPublicationEventDto | null;
+    rejection: IntegrationPublicationEventDto | null;
+    revocation: IntegrationPublicationEventDto | null;
+  };
+}
+
+export interface IntegrationDistributionOverviewDto {
+  scope: {
+    tenantId: string | null;
+    organizationId: string | null;
+  };
+  summary: {
+    publicationCount: number;
+    publishedCount: number;
+    publicPublicationCount: number;
+    partnerPublicationCount: number;
+    pendingAccessRequests: number;
+    approvedAccessRequests: number;
+    rejectedAccessRequests: number;
+    revokedAccessRequests: number;
+    activeGrants: number;
+    publicMetadataFetches: number;
+    publicPackageFetches: number;
+    publicDocsFetches: number;
+    partnerMetadataFetches: number;
+    partnerPackageFetches: number;
+    partnerDocsFetches: number;
+  };
+  byVisibility: Record<string, number>;
+  byChannel: Record<string, number>;
+  windows: {
+    last7Days: {
+      eventCount: number;
+      accessRequests: number;
+      approvals: number;
+      fetches: number;
+    };
+    last30Days: {
+      eventCount: number;
+      accessRequests: number;
+      approvals: number;
+      fetches: number;
+    };
+    allTime: {
+      eventCount: number;
+      accessRequests: number;
+      approvals: number;
+      fetches: number;
+    };
+  };
+  topPublications: Array<{
+    publicationId: string;
+    connectorKey: string;
+    version: string;
+    visibility: string;
+    channel: string;
+    status: string;
+    totalFetches: number;
+    accessRequests: number;
+    approvedRequests: number;
+    activeGrants: number;
+    lastEventAt: string | null;
+    publishedAt: string;
+  }>;
+  latest: {
+    publication: IntegrationPublicationDto | null;
+    accessRequest: IntegrationDistributionRequestDto | null;
+    event: IntegrationPublicationEventDto | null;
+  };
+}
+
+export interface IntegrationPublicationSigningReadinessDto {
+  publicationId: string;
+  connectorKey: string;
+  version: string;
+  signingKeyRef: string | null;
+  latestAvailableKeyRef: string | null;
+  signatureStatus: string;
+  canReSign: boolean;
+  requiresRotation: boolean;
+  blockingIssues: string[];
+  warnings: string[];
+}
+
+export interface IntegrationPublicationLifecycleReadinessDto {
+  publicationId: string;
+  connectorKey: string;
+  version: string;
+  publicationStatus: string;
+  deprecationStage: string;
+  sunsetAt: string | null;
+  isSunsetDue: boolean;
+  actionRequired: boolean;
+  canAutoRevoke: boolean;
+  recommendedStatus: string | null;
+  blockingIssues: string[];
+  warnings: string[];
+}
+
+export interface IntegrationPublicationLifecycleSweepDto {
+  scannedCount: number;
+  affectedCount: number;
+  dryRun: boolean;
+  affected: Array<{
+    publicationId: string;
+    connectorKey: string;
+    version: string;
+    previousStatus: string;
+    nextStatus: string;
+    reason: string;
+  }>;
+}
+
+export interface IntegrationDistributionRequestDto {
+  id: string;
+  publicationId: string;
+  connectorKey: string;
+  version: string;
+  requestedChannel: string | null;
+  companyName: string;
+  contactName: string;
+  contactEmail: string;
+  intendedUse: Record<string, unknown> | null;
+  status: string;
+  decisionNotes: Record<string, unknown> | null;
+  accessToken: string | null;
+  grantedConsumerKey: string | null;
+  grantExpiresAt: string | null;
+  approvedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationDistributionRequestGovernanceReadinessDto {
+  requestId: string;
+  publicationId: string;
+  connectorKey: string;
+  version: string;
+  status: string;
+  grantedConsumerKey: string | null;
+  grantExpiresAt: string | null;
+  approvedAt: string | null;
+  revokedAt: string | null;
+  isExpired: boolean;
+  actionRequired: boolean;
+  canAutoRevoke: boolean;
+  blockingIssues: string[];
+  warnings: string[];
+}
+
+export interface IntegrationDistributionRequestGovernanceSweepDto {
+  scannedCount: number;
+  affectedCount: number;
+  dryRun: boolean;
+  affected: Array<{
+    requestId: string;
+    publicationId: string;
+    connectorKey: string;
+    version: string;
+    previousStatus: string;
+    nextStatus: string;
+    reason: string;
+  }>;
+}
+
+export interface IntegrationActivationRequestDto {
+  id: string;
+  publicationId: string | null;
+  registryEntryId: string | null;
+  tenantId: string | null;
+  organizationId: string | null;
+  targetKind: string;
+  connectorKey: string;
+  version: string;
+  status: string;
+  requestNotes: Record<string, unknown> | null;
+  decisionNotes: Record<string, unknown> | null;
+  activationArtifact: Record<string, unknown> | null;
+  requestedByUserId: string | null;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  appliedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IntegrationActivationRequestReadinessDto {
+  requestId: string;
+  publicationId: string | null;
+  registryEntryId: string | null;
+  tenantId: string | null;
+  organizationId: string | null;
+  targetKind: string;
+  connectorKey: string;
+  version: string;
+  requestStatus: string;
+  status: string;
+  publicationStatus: string | null;
+  registryStatus: string | null;
+  canApprove: boolean;
+  canApply: boolean;
+  canRevoke: boolean;
+  blockingIssues: string[];
+  warnings: string[];
+  checks: Array<{
+    code: string;
+    status: "READY" | "BLOCKED" | "WARN";
+    message: string;
+  }>;
+  providerPolicy?: {
+    key: string | null;
+    name: string | null;
+    riskLevel: string | null;
+    executionModel: string | null;
+    preferredRetryExecution: string | null;
+  } | null;
+  providerCompatibility?: {
+    status: "READY" | "BLOCKED" | "WARN";
+    blockingIssues: string[];
+    warnings: string[];
+    checks: Array<{
+      code: string;
+      status: "READY" | "BLOCKED" | "WARN";
+      message: string;
+    }>;
+    policy: {
+      key: string | null;
+      name: string | null;
+      riskLevel: string | null;
+      executionModel: string | null;
+      preferredRetryExecution: string | null;
+    } | null;
+  } | null;
+  activation: {
+    requestedAt: string;
+    approvedAt: string | null;
+    appliedAt: string | null;
+    revokedAt: string | null;
+    rejectedAt: string | null;
+  };
+}
+
+export interface IntegrationActivationInstallReadinessDto {
+  requestId: string;
+  publicationId: string | null;
+  registryEntryId: string | null;
+  tenantId: string | null;
+  organizationId: string | null;
+  targetKind: string;
+  connectorKey: string;
+  version: string;
+  requestStatus: string;
+  status: string;
+  canInstall: boolean;
+  blockingIssues: string[];
+  warnings: string[];
+  checks: Array<{
+    code: string;
+    status: "READY" | "BLOCKED" | "WARN";
+    message: string;
+  }>;
+  providerPolicy?: {
+    key: string | null;
+    name: string | null;
+    riskLevel: string | null;
+    executionModel: string | null;
+    preferredRetryExecution: string | null;
+  } | null;
+  providerCompatibility?: {
+    status: "READY" | "BLOCKED" | "WARN";
+    blockingIssues: string[];
+    warnings: string[];
+    checks: Array<{
+      code: string;
+      status: "READY" | "BLOCKED" | "WARN";
+      message: string;
+    }>;
+    policy: {
+      key: string | null;
+      name: string | null;
+      riskLevel: string | null;
+      executionModel: string | null;
+      preferredRetryExecution: string | null;
+    } | null;
+  } | null;
+  install: {
+    installMode: string;
+    source: string;
+    targetTenantId: string | null;
+    targetStoreId: string | null;
+    existingRuntimeEntryId: string | null;
+    existingRuntimeStatus: string | null;
+    connectorTemplateId: string | null;
+    connectorTemplateVersion: string | null;
+    transportMode: string;
+    providerAdapterKey: string | null;
+    providerProfileKey: string | null;
+  };
+  runtimeRollout?: {
+    installedRegistryEntryId: string | null;
+    source: string;
+    connectorTemplateId: string | null;
+    connectorTemplateVersion: string | null;
+    driftStatus: string;
+    sourceDigestCurrent: string;
+    sourceDigestInstalled: string | null;
+    governanceStatus: string;
+    governanceReason: string | null;
+    lastGovernanceEvaluationAt: string | null;
+    publicationLifecycle: {
+      actionRequired: boolean;
+      canAutoRevoke: boolean;
+      recommendedStatus: string | null;
+      blockingIssues: string[];
+      warnings: string[];
+    } | null;
+  } | null;
+}
+
+export interface IntegrationActivationRuntimeRolloutReadinessDto {
+  requestId: string;
+  connectorKey: string;
+  version: string;
+  tenantId: string | null;
+  targetTenantId: string | null;
+  targetStoreId: string | null;
+  status: string;
+  canReconcile: boolean;
+  canApplyGovernance: boolean;
+  requestStatus: string;
+  runtimeStatus: string | null;
+  blockingIssues: string[];
+  warnings: string[];
+  checks: Array<{
+    code: string;
+    status: "READY" | "BLOCKED" | "WARN";
+    message: string;
+  }>;
+  providerPolicy?: {
+    key: string | null;
+    name: string | null;
+    riskLevel: string | null;
+    executionModel: string | null;
+    preferredRetryExecution: string | null;
+  } | null;
+  providerCompatibility?: {
+    status: "READY" | "BLOCKED" | "WARN";
+    blockingIssues: string[];
+    warnings: string[];
+    checks: Array<{
+      code: string;
+      status: "READY" | "BLOCKED" | "WARN";
+      message: string;
+    }>;
+    policy: {
+      key: string | null;
+      name: string | null;
+      riskLevel: string | null;
+      executionModel: string | null;
+      preferredRetryExecution: string | null;
+    } | null;
+  } | null;
+  runtimeRollout: {
+    installedRegistryEntryId: string | null;
+    source: string;
+    connectorTemplateId: string | null;
+    connectorTemplateVersion: string | null;
+    driftStatus: string;
+    sourceDigestCurrent: string;
+    sourceDigestInstalled: string | null;
+    governanceStatus: string;
+    governanceReason: string | null;
+    lastGovernanceEvaluationAt: string | null;
+    publicationLifecycle: {
+      actionRequired: boolean;
+      canAutoRevoke: boolean;
+      recommendedStatus: string | null;
+      blockingIssues: string[];
+      warnings: string[];
+    } | null;
+  };
+}
+
+export interface IntegrationActivationExecutionPolicyDto {
+  requestId: string;
+  connectorKey: string;
+  version: string;
+  tenantId: string | null;
+  targetTenantId: string | null;
+  targetStoreId: string | null;
+  status: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+  state: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+  canApplyExecutionPolicy: boolean;
+  runtimeStatus: string | null;
+  blockingIssues: string[];
+  warnings: string[];
+  checks: Array<{
+    code: string;
+    status: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+    message: string;
+  }>;
+  providerPolicy?: {
+    key: string | null;
+    name: string | null;
+    riskLevel: string | null;
+    executionModel: string | null;
+    preferredRetryExecution: string | null;
+  } | null;
+  providerCompatibility?: {
+    status: "READY" | "BLOCKED" | "WARN";
+    blockingIssues: string[];
+    warnings: string[];
+    checks: Array<{
+      code: string;
+      status: "READY" | "BLOCKED" | "WARN";
+      message: string;
+    }>;
+    policy: {
+      key: string | null;
+      name: string | null;
+      riskLevel: string | null;
+      executionModel: string | null;
+      preferredRetryExecution: string | null;
+    } | null;
+  } | null;
+  executionPolicy: {
+    state: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+    reason: string | null;
+    evaluatedAt: string | null;
+    requestStatus: string | null;
+    runtimeStatus: string | null;
+    providerPolicy?: {
+      key: string | null;
+      name: string | null;
+      riskLevel: string | null;
+      executionModel: string | null;
+      preferredRetryExecution: string | null;
+    } | null;
+    providerCompatibility?: Record<string, unknown> | null;
+    runtimeRollout?: Record<string, unknown> | null;
+    secretResolution?: {
+      requiredSecrets: string[];
+      resolvedSecrets: string[];
+      missingSecrets: string[];
+      resolved: boolean;
+    } | null;
+    deployment?: Record<string, unknown> | null;
+  };
+}
+
+export interface InventorySupplierProviderRuntimePolicyDto {
+  key: string;
+  name: string;
+  description: string;
+  riskLevel: "STANDARD" | "ELEVATED" | "STRICT";
+  executionModel: "INLINE_PUSH" | "FILE_EXCHANGE" | "SIGNED_CALLBACK";
+  adapterKeys: string[];
+  profileKeys: string[];
+  distribution: {
+    requirePublicationSnapshot: boolean;
+    requireSignedPublication: boolean;
+    allowedVisibility: Array<"PUBLIC" | "PARTNER">;
+    allowedChannels: string[];
+  };
+  activation: {
+    requireApproval: boolean;
+    requireAppliedActivation: boolean;
+    requireTenantInstall: boolean;
+  };
+  runtime: {
+    requireCurrentGovernance: boolean;
+    requireCurrentSourceDigest: boolean;
+    requireResolvedSecrets: boolean;
+    allowGlobalFallback: boolean;
+    preferredRetryExecution: "INLINE" | "WORKER";
+  };
+  summary: {
+    allowedVisibility: Array<"PUBLIC" | "PARTNER">;
+    allowedChannels: string[];
+    requirePublicationSnapshot: boolean;
+    requireSignedPublication: boolean;
+    requireApproval: boolean;
+    requireAppliedActivation: boolean;
+    requireTenantInstall: boolean;
+    requireCurrentGovernance: boolean;
+    requireCurrentSourceDigest: boolean;
+    requireResolvedSecrets: boolean;
+    allowGlobalFallback: boolean;
+    preferredRetryExecution: "INLINE" | "WORKER";
+  };
+}
+
+export interface InventorySupplierProviderRuntimeOverviewDto {
+  tenantId: string;
+  storeId: string | null;
+  summary: {
+    connectorCount: number;
+    runtimeGroupCount: number;
+    supplierJobCount: number;
+    readyExecutionCount: number;
+    warnExecutionCount: number;
+    blockedExecutionCount: number;
+    suspendedExecutionCount: number;
+    retryableFailureCount: number;
+    terminalFailureCount: number;
+  };
+  items: Array<{
+    providerAdapterKey: string | null;
+    providerAdapterName: string | null;
+    providerProfileKey: string | null;
+    providerPolicyKey: string | null;
+    transportMode: string;
+    executionPolicyStatus: string | null;
+    connectorCount: number;
+    supplierJobCount: number;
+    successCount: number;
+    failedCount: number;
+    retryableFailureCount: number;
+    terminalFailureCount: number;
+    latestExecutionAt: string | null;
+    failureClasses: Record<string, number>;
+    retryClasses: Record<string, number>;
+    executionPhases: Record<string, number>;
+  }>;
+}
+
+export interface InventorySupplierExecutionReadinessDto {
+  jobId: string;
+  tenantId: string;
+  storeId: string | null;
+  connectorKey: string | null;
+  transportMode: string | null;
+  status: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+  canExecute: boolean;
+  providerAdapterKey: string | null;
+  providerAdapterName: string | null;
+  providerProfileKey: string | null;
+  providerPolicyKey: string | null;
+  providerPolicy: Record<string, unknown> | null;
+  providerCompatibility: Record<string, unknown> | null;
+  executionPolicy: Record<string, unknown> | null;
+  blockingIssues: string[];
+  warnings: string[];
+  checks: Array<{
+    code: string;
+    status: "READY" | "WARN" | "BLOCKED" | "SUSPENDED";
+    message: string;
+  }>;
+  failure: {
+    providerErrorClass: string | null;
+    retryClass: string | null;
+    providerExecutionPhase: string | null;
+    deadLetterReasonCode: string | null;
+  };
+  staging: Record<string, unknown> | null;
+}
+
+export interface EnterpriseOperationsOverviewDto {
+  scope: {
+    tenantId: string | null;
+    organizationId: string | null;
+  };
+  summary: {
+    billingPlanCount: number;
+    billingSubscriptionCount: number;
+    billingInvoiceCount: number;
+    identityProviderCount: number;
+    federatedLinkCount: number;
+    advancedRolePolicyCount: number;
+    auditExportCount: number;
+    compliancePackCount: number;
+    complianceEvidenceArtifactCount: number;
+    secretRegistryEntryCount: number;
+    deploymentVariantCount: number;
+    integrationRegistryEntryCount: number;
+    connectorTemplateCount: number;
+    partnerSdkContractCount: number;
+  };
+  statuses: {
+    subscriptions: Record<string, number>;
+    invoices: Record<string, number>;
+    identityProviders: Record<string, number>;
+    auditExports: Record<string, number>;
+    compliancePacks: Record<string, number>;
+    deploymentVariants: Record<string, number>;
+    integrationRegistryEntries: Record<string, number>;
+    partnerSdkContracts: Record<string, number>;
+  };
+  latest: {
+    subscription: SubscriptionDto | null;
+    invoice: InvoiceDto | null;
+    identityProvider: EnterpriseIdentityProviderDto | null;
+    auditExport: AuditExportJobDto | null;
+    compliancePack: CompliancePackDto | null;
+    deploymentVariant: DeploymentVariantDto | null;
+    integrationRegistryEntry: IntegrationRegistryEntryDto | null;
+    connectorTemplate: ConnectorTemplateDto | null;
+    partnerSdkContract: PartnerSdkContractDto | null;
+  };
+}
+
+export interface CreatePaymentOperationRequest {
+  paymentIntentId: string;
+  paymentAllocationId?: string | null;
+  kind: PaymentOperationKind;
+  amount: string;
+  reason?: string | null;
+}
+
+export interface CreatePaymentSettlementRequest {
+  tenantId?: string;
+  storeId?: string | null;
+  providerKey: string;
+  periodStart: string;
+  periodEnd: string;
+  totalAmount?: string;
+  settledAmount?: string;
+  summary?: Record<string, unknown> | null;
+}
+
+export interface ReceivePaymentWebhookRequest {
+  tenantId?: string | null;
+  storeId?: string | null;
+  deliveryId: string;
+  eventType: string;
+  signature?: string | null;
+  payload: Record<string, unknown>;
+}
+
+export interface CreateHardwareJobRequest {
+  tenantId?: string;
+  storeId: string;
+  orderId?: string | null;
+  deviceId?: string | null;
+  connectorKey: string;
+  kind: HardwareJobKind;
+  requestPayload?: Record<string, unknown> | null;
+}
+
+export interface CreateBillingPlanRequest {
+  code: string;
+  name: string;
+  priceAmount?: string;
+  currency?: string;
+  intervalKey?: string;
+  entitlements?: Record<string, unknown>;
+  quotas?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateSubscriptionRequest {
+  tenantId: string;
+  planId: string;
+  billingAccountId?: string;
+  status?: "TRIAL" | "ACTIVE" | "GRACE" | "SUSPENDED" | "CANCELLED";
+  currentPeriodDays?: number;
+}
+
+export interface IssueInvoiceRequest {
+  tenantId: string;
+  billingAccountId: string;
+  subscriptionId?: string | null;
+  subtotalAmount: string;
+  totalAmount: string;
+  lines: Array<Record<string, unknown>>;
+  dueAt?: string | null;
+}
+
+export interface UpsertEntitlementGrantRequest {
+  tenantId: string;
+  subscriptionId?: string | null;
+  key: string;
+  scopeType?: string;
+  scopeId?: string | null;
+  value: Record<string, unknown>;
+  source?: string;
+}
+
+export interface UpsertQuotaCounterRequest {
+  tenantId: string;
+  subscriptionId?: string | null;
+  key: string;
+  scopeType?: string;
+  scopeId?: string | null;
+  limitValue: number;
+  usedValue?: number;
+  resetAt?: string | null;
+}
+
+export interface CreateWarehouseRequest {
+  tenantId: string;
+  storeId: string;
+  code: string;
+  name: string;
+}
+
+export interface CreateIngredientRequest {
+  tenantId: string;
+  code: string;
+  name: string;
+  unit: string;
+}
+
+export interface CreateInventoryItemRequest {
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  productId?: string | null;
+  variantId?: string | null;
+  ingredientId?: string | null;
+  unit?: string;
+  onHandQuantity?: string;
+  reorderPointQuantity?: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateRecipeBomRequest {
+  tenantId: string;
+  productId?: string | null;
+  variantId?: string | null;
+  modifierOptionId?: string | null;
+  ingredientId: string;
+  quantity: string;
+}
+
+export interface CreateReceivingRecordRequest {
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  reference: string;
+  notes?: string | null;
+  lines: Array<{
+    inventoryItemId?: string | null;
+    ingredientId?: string | null;
+    productId?: string | null;
+    variantId?: string | null;
+    quantity: string;
+    unitCost?: string | null;
+  }>;
+}
+
+export interface CreateInventoryAdjustmentRequest {
+  tenantId: string;
+  storeId: string;
+  warehouseId: string;
+  inventoryItemId: string;
+  kind: InventoryAdjustmentKind;
+  quantity: string;
+  reason: string;
+}
+
+export interface CreateStopListRuleRequest {
+  tenantId: string;
+  storeId: string;
+  targetType: string;
+  targetId: string;
+  source?: string;
+  reason?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateOrganizationRequest {
+  code: string;
+  name: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface LinkOrganizationTenantRequest {
+  tenantId: string;
+  roleKey?: string;
+}
+
+export interface AddOrganizationMembershipRequest {
+  userId: string;
+  roleKey: string;
+}
+
+export interface UpsertGovernancePolicyRequest {
+  policyKey: string;
+  rules: Record<string, unknown>;
+}
+
+export interface CreateRolloutTemplateRequest {
+  organizationId: string;
+  code: string;
+  name: string;
+  artifact: Record<string, unknown>;
+}
+
+export interface ApplyRolloutTemplateRequest {
+  tenantId?: string | null;
+  storeId?: string | null;
+}
+
+export interface CreateWhiteLabelPackRequest {
+  organizationId?: string | null;
+  tenantId?: string | null;
+  code: string;
+  name: string;
+  artifact: Record<string, unknown>;
+}
+
+export interface CreatePartnerAccountRequest {
+  organizationId?: string | null;
+  tenantId?: string | null;
+  code: string;
+  name: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateEnterpriseIdentityProviderRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  code: string;
+  type: IdentityProviderType;
+  config: Record<string, unknown>;
+}
+
+export interface CreateFederatedIdentityLinkRequest {
+  identityProviderId: string;
+  userId: string;
+  externalSubject: string;
+  email?: string | null;
+}
+
+export interface CreateAuditExportJobRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  filter?: Record<string, unknown> | null;
+}
+
+export interface CreateAdvancedRolePolicyRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  key: string;
+  rules: Record<string, unknown>;
+}
+
+export interface CreateCompliancePackRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  code: string;
+  name: string;
+  controls: Record<string, unknown>;
+}
+
+export interface CreateComplianceEvidenceArtifactRequest {
+  compliancePackId?: string | null;
+  tenantId?: string | null;
+  organizationId?: string | null;
+  key: string;
+  artifact: Record<string, unknown>;
+}
+
+export interface CreateSecretRegistryEntryRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  scopeType: string;
+  scopeId?: string | null;
+  key: string;
+  value: string;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CreateDeploymentVariantRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  code: string;
+  name: string;
+  config: Record<string, unknown>;
+}
+
+export interface CreatePartnerSdkContractRequest {
+  partnerAccountId?: string | null;
+  key: string;
+  version: string;
+  schema: Record<string, unknown>;
+}
+
+export interface CreateIntegrationRegistryEntryRequest {
+  tenantId?: string | null;
+  organizationId?: string | null;
+  connectorKey: string;
+  version: string;
+  manifest: Record<string, unknown>;
+}
+
+export interface CreateConnectorTemplateRequest {
+  connectorKey: string;
+  version: string;
+  manifest: Record<string, unknown>;
 }
 
 export interface AnalyticsTopProductDto {

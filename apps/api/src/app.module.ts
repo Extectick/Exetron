@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { AnalyticsModule } from "./analytics/analytics.module";
 import { AuditModule } from "./audit/audit.module";
 import { AuthModule } from "./auth/auth.module";
+import { BillingModule } from "./billing/billing.module";
 import { BrandsModule } from "./brands/brands.module";
 import { CategoriesModule } from "./categories/categories.module";
 import { CommonModule } from "./common/common.module";
@@ -17,9 +18,11 @@ import { PermissionsGuard } from "./common/guards/permissions.guard";
 import { DatabaseModule } from "./database/database.module";
 import { DevicesModule } from "./devices/devices.module";
 import { DomainEventsModule } from "./domain-events/domain-events.module";
+import { EnterpriseModule } from "./enterprise/enterprise.module";
 import { FeatureFlagsModule } from "./feature-flags/feature-flags.module";
 import { FulfillmentModule } from "./fulfillment/fulfillment.module";
 import { HealthController } from "./health.controller";
+import { InventoryModule } from "./inventory/inventory.module";
 import { KitchenModule } from "./kitchen/kitchen.module";
 import { KioskModule } from "./kiosk/kiosk.module";
 import { LocalizationModule } from "./localization/localization.module";
@@ -37,6 +40,7 @@ import { StorefrontModule } from "./storefront/storefront.module";
 import { TenantsModule } from "./tenants/tenants.module";
 import { UsersModule } from "./users/users.module";
 import { ObservabilityModule } from "./observability/observability.module";
+import { OrganizationsModule } from "./organizations/organizations.module";
 
 @Module({
   imports: [
@@ -56,6 +60,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     AuthModule,
     AnalyticsModule,
     AuditModule,
+    BillingModule,
     OnboardingModule,
     LocalizationModule,
     TenantsModule,
@@ -64,8 +69,11 @@ import { ObservabilityModule } from "./observability/observability.module";
     ProductsModule,
     ModifiersModule,
     PricingModule,
+    InventoryModule,
     OrdersModule,
+    OrganizationsModule,
     PaymentsModule,
+    EnterpriseModule,
     KitchenModule,
     KioskModule,
     PosModule,
@@ -75,8 +83,7 @@ import { ObservabilityModule } from "./observability/observability.module";
     RolesModule,
     DevicesModule,
     SettingsModule,
-    FeatureFlagsModule
-    ,
+    FeatureFlagsModule,
     FulfillmentModule
   ],
   controllers: [HealthController],

@@ -1252,3 +1252,907 @@ model KioskPaymentHandoff {
   @@index([deviceId, createdAt])
   @@index([orderId, createdAt])
 }
+
+model PaymentOperation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @db.Uuid
+  storeId             String   @db.Uuid
+  paymentIntentId     String   @db.Uuid
+  paymentAllocationId String?  @db.Uuid
+  orderId             String   @db.Uuid
+  kind                String
+  status              String   @default("PENDING")
+  amount              Decimal  @db.Decimal(12, 2)
+  currency            String   @default("RUB")
+  providerKey         String
+  externalReference   String?
+  reason              String?
+  requestPayload      Json?
+  responsePayload     Json?
+  createdByUserId     String?  @db.Uuid
+  processedAt         DateTime?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tenantId, storeId, kind, createdAt])
+  @@index([paymentIntentId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model PaymentSettlement {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  storeId       String?  @db.Uuid
+  providerKey   String
+  status        String   @default("OPEN")
+  currency      String   @default("RUB")
+  periodStart   DateTime
+  periodEnd     DateTime
+  totalAmount   Decimal  @default(0) @db.Decimal(12, 2)
+  settledAmount Decimal  @default(0) @db.Decimal(12, 2)
+  summary       Json?
+  importedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, providerKey, createdAt])
+  @@index([storeId, createdAt])
+}
+
+model PaymentWebhookEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  storeId        String?  @db.Uuid
+  providerKey    String
+  deliveryId     String
+  eventType      String
+  status         String   @default("RECEIVED")
+  signatureValid Boolean  @default(false)
+  payload        Json
+  processedAt    DateTime?
+  failureReason  String?
+  createdAt      DateTime @default(now())
+
+  @@unique([providerKey, deliveryId])
+  @@index([tenantId, createdAt])
+  @@index([storeId, createdAt])
+}
+
+model ConnectorExecutionLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String?  @db.Uuid
+  storeId         String?  @db.Uuid
+  connectorKind   String
+  connectorKey    String
+  action          String
+  status          String   @default("PENDING")
+  requestPayload  Json?
+  responsePayload Json?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  finishedAt      DateTime?
+
+  @@index([tenantId, connectorKind, createdAt])
+  @@index([storeId, connectorKind, createdAt])
+}
+
+model HardwareJob {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @db.Uuid
+  storeId         String   @db.Uuid
+  orderId         String?  @db.Uuid
+  deviceId        String?  @db.Uuid
+  connectorKey    String
+  kind            String
+  status          String   @default("PENDING")
+  requestPayload  Json?
+  resultPayload   Json?
+  failureReason   String?
+  createdByUserId String?  @db.Uuid
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId, storeId, kind, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model HardwareReceipt {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenantId          String   @db.Uuid
+  storeId           String   @db.Uuid
+  hardwareJobId     String?  @db.Uuid
+  orderId           String?  @db.Uuid
+  receiptType       String
+  externalReference String?
+  payload           Json
+  createdAt         DateTime @default(now())
+
+  @@unique([hardwareJobId])
+  @@index([tenantId, storeId, createdAt])
+  @@index([orderId, createdAt])
+}
+
+model HardwareSession {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  storeId      String   @db.Uuid
+  deviceId     String?  @db.Uuid
+  connectorKey String
+  status       String   @default("ACTIVE")
+  sessionToken String?
+  metadata     Json?
+  startedAt    DateTime @default(now())
+  endedAt      DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, storeId, createdAt])
+  @@index([deviceId, createdAt])
+}
+
+model BillingPlan {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique
+  name         String
+  status       String   @default("ACTIVE")
+  priceAmount  Decimal  @default(0) @db.Decimal(12, 2)
+  currency     String   @default("RUB")
+  intervalKey  String   @default("MONTHLY")
+  entitlements Json
+  quotas       Json
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ResellerAccount {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  status    String   @default("ACTIVE")
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BillingAccount {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @unique @db.Uuid
+  resellerAccountId   String?  @db.Uuid
+  status              String   @default("ACTIVE")
+  defaultPaymentTerms String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Subscription {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  billingAccountId   String   @db.Uuid
+  planId             String   @db.Uuid
+  status             String   @default("TRIAL")
+  startedAt          DateTime @default(now())
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId, status, createdAt])
+  @@index([billingAccountId, createdAt])
+}
+
+model Invoice {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  billingAccountId String   @db.Uuid
+  subscriptionId   String?  @db.Uuid
+  number           String   @unique
+  status           String   @default("DRAFT")
+  currency         String   @default("RUB")
+  subtotalAmount   Decimal  @default(0) @db.Decimal(12, 2)
+  totalAmount      Decimal  @default(0) @db.Decimal(12, 2)
+  dueAt            DateTime?
+  issuedAt         DateTime?
+  paidAt           DateTime?
+  lines            Json
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([billingAccountId, createdAt])
+}
+
+model EntitlementGrant {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  subscriptionId String?  @db.Uuid
+  key            String
+  scopeType      String
+  scopeId        String?
+  value          Json
+  source         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, key, scopeType, scopeId])
+}
+
+model QuotaCounter {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  subscriptionId String?  @db.Uuid
+  key            String
+  scopeType      String
+  scopeId        String?
+  limitValue     Int
+  usedValue      Int      @default(0)
+  resetAt        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, key, scopeType, scopeId])
+}
+
+model TrialGrant {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @unique @db.Uuid
+  subscriptionId String?  @db.Uuid
+  status         String   @default("ACTIVE")
+  startedAt      DateTime @default(now())
+  endsAt         DateTime
+  convertedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Warehouse {
+  id        String   @id @db.Uuid
+  tenantId  String   @db.Uuid @map("tenant_id")
+  storeId   String?  @db.Uuid @map("store_id")
+  code      String
+  name      String
+  kind      String   @default("GENERAL")
+  notes     String?
+  isActive  Boolean  @default(true) @map("is_active")
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, storeId, createdAt])
+  @@map("inventory_warehouses")
+}
+
+model Ingredient {
+  id               String   @id @db.Uuid
+  tenantId         String   @db.Uuid @map("tenant_id")
+  code             String
+  name             String
+  unit             String
+  lowStockThreshold Decimal @default(0) @map("low_stock_threshold") @db.Decimal(18, 4)
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, code])
+  @@map("inventory_ingredients")
+}
+
+model InventoryItem {
+  id           String   @id @db.Uuid
+  tenantId     String   @db.Uuid @map("tenant_id")
+  warehouseId  String   @db.Uuid @map("warehouse_id")
+  ingredientId String   @db.Uuid @map("ingredient_id")
+  sku          String?
+  onHand       Decimal  @default(0) @map("on_hand") @db.Decimal(18, 4)
+  reserved     Decimal  @default(0) @db.Decimal(18, 4)
+  reorderPoint Decimal  @default(0) @map("reorder_point") @db.Decimal(18, 4)
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([warehouseId, ingredientId])
+  @@index([tenantId, warehouseId, createdAt])
+  @@index([ingredientId])
+  @@map("inventory_items")
+}
+
+model RecipeBom {
+  id           String   @id @db.Uuid
+  tenantId     String   @db.Uuid @map("tenant_id")
+  productId    String   @db.Uuid @map("product_id")
+  variantId    String?  @db.Uuid @map("variant_id")
+  ingredientId String   @db.Uuid @map("ingredient_id")
+  quantity     Decimal  @db.Decimal(18, 4)
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId, variantId, ingredientId])
+  @@index([tenantId, productId, variantId])
+  @@index([ingredientId])
+  @@map("inventory_recipe_boms")
+}
+
+model ReceivingRecord {
+  id          String   @id @db.Uuid
+  tenantId    String   @db.Uuid @map("tenant_id")
+  warehouseId String   @db.Uuid @map("warehouse_id")
+  reference  String
+  status     String   @default("OPEN")
+  receivedBy String?  @map("received_by")
+  completedAt DateTime? @map("completed_at")
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, createdAt])
+  @@index([warehouseId, createdAt])
+  @@map("inventory_receiving_records")
+}
+
+model ReceivingLine {
+  id           String   @id @db.Uuid
+  recordId     String   @db.Uuid @map("record_id")
+  ingredientId String   @db.Uuid @map("ingredient_id")
+  quantity     Decimal  @db.Decimal(18, 4)
+  unitCost     Decimal? @map("unit_cost") @db.Decimal(18, 2)
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([recordId, createdAt])
+  @@map("inventory_receiving_lines")
+}
+
+model InventoryAdjustment {
+  id             String   @id @db.Uuid
+  tenantId       String   @db.Uuid @map("tenant_id")
+  warehouseId    String   @db.Uuid @map("warehouse_id")
+  ingredientId   String   @db.Uuid @map("ingredient_id")
+  adjustmentType String   @map("adjustment_type")
+  quantity       Decimal  @db.Decimal(18, 4)
+  reason         String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, warehouseId, createdAt])
+  @@map("inventory_adjustments")
+}
+
+model StockReservation {
+  id          String   @id @db.Uuid
+  tenantId    String   @db.Uuid @map("tenant_id")
+  warehouseId String   @db.Uuid @map("warehouse_id")
+  ingredientId String  @db.Uuid @map("ingredient_id")
+  sourceType String   @map("source_type")
+  sourceId   String   @map("source_id")
+  quantity   Decimal  @db.Decimal(18, 4)
+  status     String   @default("ACTIVE")
+  expiresAt  DateTime? @map("expires_at")
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([warehouseId, sourceType, sourceId, ingredientId])
+  @@index([tenantId, createdAt])
+  @@index([sourceType, sourceId, createdAt])
+  @@map("inventory_stock_reservations")
+}
+
+model StockLedgerEntry {
+  id           String   @id @db.Uuid
+  tenantId     String   @db.Uuid @map("tenant_id")
+  warehouseId  String   @db.Uuid @map("warehouse_id")
+  ingredientId String   @db.Uuid @map("ingredient_id")
+  entryType   String   @map("entry_type")
+  quantity    Decimal  @db.Decimal(18, 4)
+  balanceAfter Decimal @map("balance_after") @db.Decimal(18, 4)
+  sourceType  String   @map("source_type")
+  sourceId    String   @map("source_id")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, warehouseId, createdAt])
+  @@index([ingredientId, createdAt])
+  @@index([sourceType, sourceId, createdAt])
+  @@map("inventory_stock_ledger_entries")
+}
+
+model StopListRule {
+  id           String   @id @db.Uuid
+  tenantId     String   @db.Uuid @map("tenant_id")
+  storeId      String?  @db.Uuid @map("store_id")
+  warehouseId  String?  @db.Uuid @map("warehouse_id")
+  ingredientId String?  @db.Uuid @map("ingredient_id")
+  sku         String?
+  ruleType    String   @map("rule_type")
+  threshold   Decimal  @default(0) @db.Decimal(18, 4)
+  isActive    Boolean  @default(true) @map("is_active")
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, storeId, createdAt])
+  @@index([warehouseId, ingredientId, isActive])
+  @@map("inventory_stop_list_rules")
+}
+
+model InventoryReplenishmentJob {
+  id              String   @id @db.Uuid
+  tenantId        String   @db.Uuid @map("tenant_id")
+  storeId         String?  @db.Uuid @map("store_id")
+  warehouseId     String?  @db.Uuid @map("warehouse_id")
+  status          String   @default("GENERATED")
+  summary         Json     @default("{}")
+  artifact        Json     @default("{}")
+  createdByUserId String?  @db.Uuid @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, createdAt])
+  @@index([warehouseId, status, createdAt])
+  @@map("inventory_replenishment_jobs")
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String
+  status    String   @default("ACTIVE")
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OrganizationMembership {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  userId         String   @db.Uuid
+  roleKey        String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, userId])
+}
+
+model OrganizationTenantLink {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  tenantId       String   @db.Uuid
+  roleKey        String
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, tenantId])
+}
+
+model GovernancePolicy {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  policyKey      String
+  rules          Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, policyKey])
+}
+
+model RolloutTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @db.Uuid
+  code            String
+  name            String
+  artifact        Json
+  version         Int      @default(1)
+  createdByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([organizationId, code])
+}
+
+model TemplateApplication {
+  id              String   @id @default(uuid()) @db.Uuid
+  templateId      String   @db.Uuid
+  tenantId        String?  @db.Uuid
+  storeId         String?  @db.Uuid
+  appliedVersion  Int
+  resultSummary   Json?
+  appliedByUserId String?  @db.Uuid
+  createdAt       DateTime @default(now())
+
+  @@index([templateId, createdAt])
+  @@index([tenantId, storeId, createdAt])
+}
+
+model WhiteLabelPack {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @db.Uuid
+  tenantId       String?  @db.Uuid
+  code           String
+  name           String
+  artifact       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([tenantId, createdAt])
+}
+
+model PartnerAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @db.Uuid
+  tenantId       String?  @db.Uuid
+  code           String   @unique
+  name           String
+  status         String   @default("ACTIVE")
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model EnterpriseBillingPlan {
+  id           String   @id @default(uuid()) @db.Uuid
+  code         String   @unique
+  name         String
+  status       String   @default("ACTIVE")
+  priceAmount  String   @default("0.00")
+  currency     String   @default("RUB")
+  intervalKey  String   @default("MONTHLY")
+  entitlements Json
+  quotas       Json
+  metadata     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EnterpriseBillingAccount {
+  id                  String   @id @default(uuid()) @db.Uuid
+  tenantId            String   @unique @db.Uuid
+  resellerAccountId   String?  @db.Uuid
+  status              String   @default("ACTIVE")
+  defaultPaymentTerms String?
+  metadata            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model EnterpriseSubscription {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @db.Uuid
+  billingAccountId   String   @db.Uuid
+  planId             String   @db.Uuid
+  status             String   @default("TRIAL")
+  startedAt          DateTime @default(now())
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([tenantId, status, createdAt])
+  @@index([billingAccountId, createdAt])
+}
+
+model EnterpriseInvoice {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  billingAccountId String   @db.Uuid
+  subscriptionId   String?  @db.Uuid
+  number           String
+  status           String   @default("ISSUED")
+  currency         String   @default("RUB")
+  subtotalAmount   String
+  totalAmount      String
+  dueAt            DateTime?
+  issuedAt         DateTime?
+  paidAt           DateTime?
+  lines            Json
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([billingAccountId, createdAt])
+}
+
+model EnterpriseEntitlementGrant {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  subscriptionId String?  @db.Uuid
+  key            String
+  scopeType      String   @default("TENANT")
+  scopeId        String?
+  value          Json
+  source         String   @default("MANUAL")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, key, scopeType, scopeId])
+}
+
+model EnterpriseQuotaCounter {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  subscriptionId String?  @db.Uuid
+  key            String
+  scopeType      String   @default("TENANT")
+  scopeId        String?
+  limitValue     Int      @default(0)
+  usedValue      Int      @default(0)
+  resetAt        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([tenantId, key, scopeType, scopeId])
+}
+
+model EnterpriseTrialGrant {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @unique @db.Uuid
+  subscriptionId String?  @db.Uuid
+  status         String   @default("ACTIVE")
+  startedAt      DateTime @default(now())
+  endsAt         DateTime
+  convertedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model EnterpriseIdentityProvider {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  code           String
+  type           String
+  status         String   @default("ACTIVE")
+  config         Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model FederatedIdentityLink {
+  id                 String   @id @default(uuid()) @db.Uuid
+  identityProviderId String   @db.Uuid
+  userId             String   @db.Uuid
+  externalSubject    String
+  email              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([identityProviderId, externalSubject])
+  @@index([userId, createdAt])
+}
+
+model AdvancedRolePolicy {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  key            String
+  rules          Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model AuditExportJob {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String?  @db.Uuid
+  organizationId  String?  @db.Uuid
+  status          String   @default("PENDING")
+  filter          Json?
+  artifact        Json?
+  createdByUserId String?  @db.Uuid
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model CompliancePack {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  code           String
+  name           String
+  status         String   @default("ACTIVE")
+  controls       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model ComplianceEvidenceArtifact {
+  id               String   @id @default(uuid()) @db.Uuid
+  compliancePackId String?  @db.Uuid
+  tenantId         String?  @db.Uuid
+  organizationId   String?  @db.Uuid
+  key              String
+  artifact         Json
+  createdAt        DateTime @default(now())
+
+  @@index([compliancePackId, createdAt])
+  @@index([tenantId, organizationId, createdAt])
+}
+
+model SecretRegistryEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  scopeType      String
+  scopeId        String?
+  key            String
+  valueEnvelope  Json
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([scopeType, scopeId])
+}
+
+model DeploymentVariant {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  code           String
+  name           String
+  status         String   @default("ACTIVE")
+  config         Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model PartnerSdkContract {
+  id               String   @id @default(uuid()) @db.Uuid
+  partnerAccountId String?  @db.Uuid
+  key              String
+  version          String
+  status           String   @default("ACTIVE")
+  schema           Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([partnerAccountId, createdAt])
+  @@index([key, version])
+}
+
+model IntegrationRegistryEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String?  @db.Uuid
+  organizationId String?  @db.Uuid
+  connectorKey   String
+  version        String
+  status         String   @default("ACTIVE")
+  manifest       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([connectorKey, version])
+}
+
+model IntegrationPublication {
+  id               String   @id @default(uuid()) @db.Uuid
+  registryEntryId  String   @db.Uuid @map("registry_entry_id")
+  tenantId         String?  @db.Uuid @map("tenant_id")
+  organizationId   String?  @db.Uuid @map("organization_id")
+  connectorKey     String   @map("connector_key")
+  version          String
+  visibility       String   @default("PARTNER")
+  channel          String   @default("general")
+  status           String   @default("PUBLISHED")
+  packageFileName  String   @map("package_file_name")
+  docsFileName     String   @map("docs_file_name")
+  artifact         Json
+  attestation      Json
+  publishedByUserId String? @db.Uuid @map("published_by_user_id")
+  publishedAt      DateTime @default(now()) @map("published_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([registryEntryId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([connectorKey, version, createdAt])
+  @@map("integration_publications")
+}
+
+model IntegrationPublicationEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  publicationId String   @db.Uuid @map("publication_id")
+  eventType     String   @map("event_type")
+  actorType     String   @map("actor_type")
+  actorKey      String?  @map("actor_key")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([publicationId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("integration_publication_events")
+}
+
+model IntegrationDistributionRequest {
+  id               String   @id @default(uuid()) @db.Uuid
+  publicationId    String   @db.Uuid @map("publication_id")
+  connectorKey     String   @map("connector_key")
+  version          String
+  requestedChannel String?  @map("requested_channel")
+  companyName      String   @map("company_name")
+  contactName      String   @map("contact_name")
+  contactEmail     String   @map("contact_email")
+  intendedUse      Json?    @map("intended_use")
+  status           String   @default("PENDING")
+  decisionNotes    Json?    @map("decision_notes")
+  accessToken      String?  @unique @map("access_token")
+  grantedConsumerKey String? @map("granted_consumer_key")
+  grantExpiresAt   DateTime? @map("grant_expires_at")
+  approvedAt       DateTime? @map("approved_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([publicationId, createdAt])
+  @@index([status, createdAt])
+  @@index([connectorKey, version, createdAt])
+  @@index([grantExpiresAt, status])
+  @@map("integration_distribution_requests")
+}
+
+model IntegrationActivationRequest {
+  id               String   @id @default(uuid()) @db.Uuid
+  publicationId    String?  @db.Uuid @map("publication_id")
+  registryEntryId  String?  @db.Uuid @map("registry_entry_id")
+  tenantId         String?  @db.Uuid @map("tenant_id")
+  organizationId   String?  @db.Uuid @map("organization_id")
+  targetKind       String   @default("SUPPLIER_CONNECTOR") @map("target_kind")
+  connectorKey     String   @map("connector_key")
+  version          String
+  status           String   @default("PENDING")
+  requestNotes     Json?    @map("request_notes")
+  decisionNotes    Json?    @map("decision_notes")
+  activationArtifact Json?  @map("activation_artifact")
+  requestedByUserId String? @db.Uuid @map("requested_by_user_id")
+  approvedAt       DateTime? @map("approved_at")
+  rejectedAt       DateTime? @map("rejected_at")
+  appliedAt        DateTime? @map("applied_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([publicationId, createdAt])
+  @@index([tenantId, targetKind, createdAt])
+  @@index([status, targetKind, createdAt])
+  @@index([connectorKey, version, targetKind, createdAt])
+  @@map("integration_activation_requests")
+}
+
+model ConnectorTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  connectorKey String
+  version      String
+  manifest     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([connectorKey, version])
+}

@@ -2,10 +2,10 @@
 ## Статус post-baseline roadmap
 
 ## Current Phase
-- Current Phase: `PHASE 16`
+- Current Phase: `PHASE 20`
 
 ## Current Iteration Goal
-- Current Iteration Goal: `Начать PHASE 16: provider/fiscal/device integration layer поверх stabilized payments + customer growth foundation`
+- Current Iteration Goal: `Post-roadmap stabilization: harden persistence/docs for PHASE 16 -> PHASE 20 without changing phase boundaries`
 
 ## Overall Progress
 - [x] Phase 0
@@ -24,11 +24,11 @@
 - [x] Phase 13
 - [x] Phase 14
 - [x] Phase 15
-- [ ] Phase 16
-- [ ] Phase 17
-- [ ] Phase 18
-- [ ] Phase 19
-- [ ] Phase 20
+- [x] Phase 16
+- [x] Phase 17
+- [x] Phase 18
+- [x] Phase 19
+- [x] Phase 20
 
 ## Done
 - Baseline `PHASE 0 -> PHASE 10` завершен
@@ -73,6 +73,31 @@
 - PHASE 15: добавлена thin admin page `/customers`, promotion management surface и manual loyalty adjustment flow
 - Для customer identity boundary и promo snapshot policy добавлены `ADR-039` и `ADR-040`
 - Проверки для PHASE 15 пройдены: database `db:generate`, `build`, `db:deploy`, contracts `typecheck`, API `typecheck`, Web `typecheck`, unit `order-money.util`, e2e `phase15-customers`, regression e2e `phase13-storefront`, `phase14-fulfillment`, `phase7-payments`
+- PHASE 16 завершен: payments runtime получил provider-neutral adapter execution, webhook inbox/idempotency path, refund/void operations, settlement import, connector execution log и hardware job/receipt surfaces
+- PHASE 16: добавлены admin page `/integrations`, public webhook endpoint `POST /payments/webhooks/:providerKey`, phase e2e `phase16-integrations` и regression e2e `phase7-payments`
+- PHASE 17 завершен: billing foundation переведен с `TenantSetting.billing.state` на dedicated billing tables (`BillingPlan`, `BillingAccount`, `Subscription`, `Invoice`, `EntitlementGrant`, `QuotaCounter`, `TrialGrant`, `ResellerAccount`) с runtime bootstrap до отдельной migration wave
+- PHASE 17: onboarding bootstrap теперь автоматически создает starter billing account/subscription/trial для нового tenant, добавлена thin admin page `/billing`, permissions `billing.read/write` и e2e `phase17-billing`
+- PHASE 18 завершен: inventory foundation введен как isolated inventory runtime с warehouse/ingredient/item/BOM/receiving/adjustment/reservation/ledger/stop-list surfaces и admin page `/inventory`
+- PHASE 18: order checkout теперь делает stock reservation when inventory/BOM configured, cancellation releases reservations, completion consumes them, а phase e2e `phase18-inventory` и regression e2e `phase13-storefront`, `phase14-fulfillment`, `phase15-customers` остаются зелеными
+- PHASE 18 hardening: reservation planning/release/consume semantics централизованы в `InventoryService`; `OrdersModule` больше не ходит напрямую в `inventory_*` tables
+- PHASE 18 hardening: inventory module переведен на Prisma-backed access поверх mapped phase18 tables; raw SQL остался только как runtime bootstrap для отсутствующих migrations
+- PHASE 18 supplier runtime углублен: connector manifest теперь поддерживает transport-aware supplier execution (`SIMULATED|WEBHOOK|FILE_IMPORT`), handoff учитывает delivery mode, а normalized supplier callbacks/import reconciliation идут через `POST /inventory/replenishment-jobs/:id/supplier-webhook` и `POST /inventory/replenishment-jobs/:id/supplier-import` с записью в shared `ConnectorExecutionLog`
+- PHASE 19 завершен: organizations foundation добавляет orgs, memberships, tenant links, governance policies, rollout templates, white-label packs и partner accounts с thin admin page `/organizations`
+- PHASE 19 hardening: organizations foundation переведен с in-memory assumptions на persistent org tables/Prisma-backed runtime without breaking tenant isolation
+- PHASE 20 завершен: enterprise foundation добавляет identity provider, federated link, audit export, secret registry, deployment variant, partner/integration registry and connector template surfaces с thin admin page `/enterprise`
+- PHASE 20 hardening: enterprise foundation переведен на persistent runtime tables/Prisma-backed artifacts и получил explicit endpoints для advanced role policies, compliance packs/evidence и partner SDK contracts
+- PHASE 20 distribution governance усилен: partner grants теперь поддерживают `grantedConsumerKey`, `grantExpiresAt`, `revokedAt`, public partner fetch path реально блокирует expired/bound grants, а operator runtime получил `governance-readiness`, single apply и batch governance sweep для distribution requests
+- PHASE 20 operator workspace доведен до governance loop: `/enterprise` показывает grant expiry/consumer binding и умеет запускать `Approve 30d`, `Apply Governance` и `Sweep Expired Grants`
+- PHASE 16 -> PHASE 20 migration consolidation завершена: forward-only Prisma migration `20260319203427_phase16_20_storage_consolidation` регистрирует payment/billing/inventory/organizations/enterprise tables и tenant-scoped RLS policies
+- PHASE 16 -> PHASE 20 cleanup завершен: runtime `CREATE TABLE` bootstrap удален из payments/billing/inventory/organizations/enterprise modules; storage baseline теперь migration-first
+- PHASE 16 -> PHASE 20 deploy discipline закреплен: root/api dev scripts и `@exetron/api test:e2e` теперь автоматически выполняют `db:deploy`, а `PrismaService` fail-fast проверяет, что последняя migration действительно применена до app startup
+- Для runtime/storage boundary фаз `16 -> 20` добавлен `ADR-041`
+- Для migration catch-up и storage baseline фаз `16 -> 20` добавлен `ADR-046`
+- Для transport-aware supplier callbacks/import reconciliation добавлен `ADR-060`
+- Для migration-first runtime baseline после cleanup добавлен `ADR-047`
+- Для enforced migration-first startup discipline добавлен `ADR-048`
+- Для time-bound partner distribution grants и auto-revoke governance добавлен `ADR-059`
+- Проверки для PHASE 16 -> PHASE 20 пройдены: API `typecheck`, Web `typecheck`, e2e `phase16-integrations`, `phase17-billing`, `phase18-inventory`, `phase19-organizations`, `phase20-enterprise`, regression e2e `phase11-onboarding`, `phase7-payments`, `phase13-storefront`, `phase14-fulfillment`, `phase15-customers`
 
 ## In Progress
 - _пусто_
@@ -81,8 +106,7 @@
 - _пусто_
 
 ## Next
-- Начать `PHASE 16`
-- Расширить payments runtime до provider/fiscal/printer/webhook/device contract layer без разрушения `PHASE 15` promo/loyalty snapshot semantics
+- Post-roadmap stabilization: UX/polish waves поверх уже normalized `PHASE 18/19/20` surfaces, без возврата к schema rescue work
 - Сохранить promotions/loyalty как cart-order concern и не переносить их в provider-specific state machines
 
 ## Decisions
@@ -102,6 +126,7 @@
 - Store fulfillment config для текущей волны хранится в settings-backed registry и остается manual/event-driven до реальных provider integrations
 - Customer growth для текущей волны отделен от staff identity: `CustomerProfile` tenant-scoped, keyed by normalized phone, а loyalty живет в account+ledger модели
 - Promotions для текущей волны materialize как explicit cart/order discount snapshot; любые pricing-affecting cart mutations сбрасывают applied promo вместо hidden recompute magic
+- PHASE 16 -> PHASE 20 шли contract-first: phase-local runtime bootstrap использовался как промежуточный шаг, но теперь удален после migration consolidation; storage baseline стал migration-first
 
 ## Tech Debt
 - для kiosk access token пока нет dedicated rotation UI; выдача идет через API endpoint
@@ -123,7 +148,52 @@
 - retention hooks пока event artifacts and recommended template keys only; отдельный campaign scheduler/dispatcher еще не внедрен
 - payments runtime пока симулирует providers
 - analytics precompute пока выполняется inline в API процессе; отдельный queue/worker orchestration еще не выделен
-- billing, inventory and enterprise layers пока отсутствуют как полноценные домены
+- app startup для PHASE 16 -> PHASE 20 больше не создает таблицы сам; safety теперь зависит от migration-first discipline и runtime guard against stale `_prisma_migrations`
+- PHASE 18 inventory storage уже физически переведен на UUID-backed columns и database-level FKs поверх `inventory_*` tables; schema rescue закрыт, а web `/inventory` уже переведен с thin admin page на task-oriented operator workspace
+- post-roadmap reporting wave: `inventory` получил endpoint `GET /inventory/operations-overview` с KPI/status/latest snapshot по stock, receiving, reservations, stop-list и ledger; `/inventory` использует его для operational health cards вместо только list-derived summaries
+- inventory reporting depth расширен дальше: добавлены `GET /inventory/replenishment-report` и `GET /inventory/ledger-drilldown`, а `/inventory` теперь показывает replenishment recommendations, latest movement drill-down и report-style artifacts для low-stock/operator work
+- PHASE 19/20 operator surfaces покрывают list/detail/update/archive/status flows и больше не завязаны на generic console-style pages: `/organizations` и `/enterprise` переведены на purpose-built operator workspaces для org governance и enterprise operations
+- post-roadmap reporting wave: `organizations` получил org-scoped overview snapshot с coverage/status/latest artifacts, а `enterprise` получил operations overview для billing, identity, security, compliance и ecosystem surfaces; web pages используют эти snapshots вместо вычисления здоровья только из list endpoints
+- verification after Docker-backed local DB restore: targeted e2e `phase19-organizations` и `phase20-enterprise` снова зеленые уже вместе с overview/reporting additions
+- targeted verification подтверждена и для `inventory`: `phase18-inventory` проходит вместе с новым operations overview snapshot
+- targeted verification подтверждена и для inventory reporting depth: `phase18-inventory` проходит вместе с replenishment report и ledger drill-down
+- inventory replenishment/reporting wave доведена до persisted artifacts: добавлены `InventoryReplenishmentJob`, migration `20260321093000_phase18_replenishment_jobs`, CRUD-lite endpoints для generated replenishment batches и UI surface для сохранения/history/archive replenishment jobs
+- inventory operator execution depth расширен дальше: replenishment jobs теперь поддерживают `approve -> dispatch -> export` path, а `/inventory` умеет запускать эти actions и показывать CSV-style export artifact поверх persisted replenishment batches
+- inventory execution depth расширен до receive-against-job reconciliation: replenishment job теперь может materialize linked receiving и закрыть его через existing receiving completion path, а job workflow metadata хранит receipt reference/status для traceability между restock plan и фактическим stock intake
+- inventory supplier-facing execution depth расширен еще дальше: replenishment jobs получили supplier handoff/status sync endpoints и multi-format export (`csv|json`), а `/inventory` теперь может сопровождать batch до внешнего supplier state without introducing another storage boundary
+- inventory connector path перестал быть purely metadata-backed: phase18 теперь читает active supplier connectors из enterprise integration registry, поддерживает connector-driven supplier sync/history endpoints и пишет supplier execution history в shared `ConnectorExecutionLog`, что делает phase20 ecosystem foundations реальным runtime dependency, а не только admin surface
+- inventory supplier runtime hardening закрыт поверх того же connector path: webhook callbacks теперь secret-verifiable по tenant/global secret registry, file-import reconciliation checksum-verifiable, а оба transport-specific пути idempotent по `deliveryId/importId` с replay markers и duplicate-safe reconciliation metadata
+- inventory supplier recovery loop больше не теряет failed state на rollback: verification failures persist как `lastFailure*`/`reconciliation=FAILED`, operator может вызвать `supplier-replay` для webhook/file-import jobs, а `/inventory` показывает recovery signals прямо на replenishment cards
+- inventory retry orchestration больше не ограничен ручным replay: failed supplier reconciliations можно requeue-ить точечно или через tenant/store sweep, workflow metadata хранит `nextRetryAt/retryAttemptCount`, а shared connector logs фиксируют retry queue actions как отдельные operational artifacts
+- file-import supplier transport тоже материализован глубже: inventory теперь выдает pickup artifact для supplier handoff и принимает dropped supplier response через dedicated file-drop endpoint, который сам нормализует payload/checksum перед existing import reconciliation logic
+- queued supplier retries теперь можно и time-driven исполнять: inventory получил due-retry runner, который переводит подходящие `RETRY_QUEUED` jobs в `RETRY_DISPATCHED`, обновляет retry processing counters и тем самым закрывает gap между operator queueing и будущим scheduler-driven execution
+- worker-ready hookup больше не только в теории: inventory module теперь содержит env-gated background retry loop и status endpoint для наблюдаемости, так что включение periodic due processing сводится к конфигурации deployment/runtime scope
+- supplier transport matrix расширен дальше simulated/webhook/file-import: inventory теперь поддерживает `HTTP_PUSH` connector mode с endpoint/method-driven outbound request artifact и provider-style sync path, что приближает phase18 к реальным external delivery adapters без вынесения отдельного transport service
+- `HTTP_PUSH` transport уже не purely declarative: inventory inline-delivers outbound supplier request через actual HTTP call, сохраняет response metadata в workflow artifact и подтвержден e2e с локальным provider mock, то есть phase18 имеет один реальный external IO path внутри supplier connector runtime
+- `HTTP_PUSH` transport hardening теперь включает manifest-driven auth/policy: secret-backed header auth, configurable timeout, accepted HTTP status set и response-status mapping уже реально применяются в inventory runtime и покрыты e2e на successful plus rejected provider responses
+- supplier retry lifecycle для inventory теперь surfaced in UI: replenishment cards показывают manifest-driven retry policy, retry state, terminal/dead-letter markers и no longer offer retry queueing on terminal artifacts, so operator surface matches the runtime state machine
+- supplier operations control plane для inventory теперь surfaced in UI too: отдельный overview KPI block, dead-letter queue surface и worker controls/status (`run now/pause/resume`) дают operator-auditable path поверх того же replenishment state machine
+- inventory supplier provider-profile block уже surfaced in UI: `/inventory` показывает available provider profiles и provider profile identity/default-policy visibility прямо на connector/job/dead-letter surfaces
+- inventory supplier provider-adapter block already surfaced in UI: `/inventory` показывает available provider adapters and provider adapter identity/default-policy visibility прямо на connector/job/dead-letter surfaces
+- inventory supplier connector readiness block already surfaced in UI: `/inventory` shows onboarding/readiness summary, blocked reasons/checks, selected connector readiness summary and readiness labels on connector list surfaces before supplier handoff
+- supplier connector rollout/install automation surfaced in UI: `/enterprise` exposes install-readiness and install-runtime actions for activation requests, and `/inventory` shows install source plus installed runtime metadata on supplier connectors and activation state
+- runtime rollout governance surfaced in UI: `/enterprise` shows installed runtime rollout health/drift/governance actions on activation cards, and `/inventory` shows rollout governance status for installed connectors and activation state cards
+- provider-runtime-policy compatibility layer surfaced in UI: `/enterprise` and `/inventory` now show provider policy health, compatibility and readiness for supplier connector installs and activation cards
+- supplier connector rollout/install automation is now runtime-backed too: enterprise activation requests expose install-readiness and install package preview, `install-runtime` materializes or updates tenant-scoped supplier connectors from template/publication-backed artifacts, and inventory read models prefer tenant-installed runtime connectors over global baselines for the same `connectorKey/version`
+- activation execution policy snapshot now visible in enterprise: activation cards show policy key, risk level, execution model, signed-publication and tenant-install requirements, plus rollout governance so external provider execution is gated before install-runtime
+- phase20 ecosystem foundations получили второй concrete runtime consumer besides inventory: enterprise integration registry теперь materializes version-scoped developer package/docs artifacts (`developer-package`, `developer-docs`) из registry entries, connector templates и partner SDK contracts, а `/enterprise` показывает compatibility/lifecycle preview уже как developer-facing deliverable, а не только admin data
+- phase20 ecosystem distribution layer перестал быть только planned next step: registry entries теперь можно publish в persistent `IntegrationPublication` artifacts с release attestation, digest/signature metadata, publication status lifecycle и telemetry events; `/enterprise` показывает publications, attestation payload и adoption events как operator-managed distribution surface
+- phase20 public delivery тоже materialized: `PUBLIC` publications теперь доступны через unauthenticated API `GET /enterprise/publications/:connectorKey/:version{,/package,/docs}` и public web page `/integrations/[connectorKey]/[version]`; public fetches автоматически создают telemetry events, так что external distribution path уже наблюдаем и не живет только внутри admin workspace
+- phase20 distribution governance перестал быть purely manual: enterprise runtime теперь вычисляет `publication-readiness` из `manifest.distribution`, блокирует invalid publication attempts по public/channel/signature policy и отдает aggregated publication analytics поверх raw telemetry events, так что operator видит не только event log, но и can-publish/adoption summary
+- phase20 signed release lifecycle расширен до key rotation: enterprise runtime теперь показывает `signing-readiness` по publication, умеет `re-sign` existing snapshot новой secret key без republish из live registry и пишет `RE_SIGNED` event, так что release signing больше не одноразовый шаг только в момент initial publish
+- phase20 contract lifecycle теперь включает automated sunset handling: enterprise runtime вычисляет `lifecycle-readiness` из publication snapshot, умеет single-item `apply-lifecycle` и batch `lifecycle-sweep`, а public availability теперь может закрываться scheduled/operator-driven revoke path на уровне publication artifacts без ручного status bookkeeping
+- phase20 partner onboarding/distribution workflow больше не ограничен public-only delivery: partner-preview artifacts теперь поддерживают public access request, operator approval with generated grant token и gated fetch через `grantToken`, а `/enterprise` показывает distribution requests рядом с publication telemetry
+- phase20 enterprise distribution analytics ушли дальше single-publication event totals: public/partner metadata fetches теперь тоже телеметрируются, publication analytics включают request/grant funnel и time-window metrics, а новый `distribution-overview` summary агрегирует portfolio-level visibility/channel mix, access request pipeline, fetch volume и top publications для текущего tenant/org scope
+- fixed toolchain drift for schema-first additions: `@exetron/database` build теперь всегда пересинхронизирует generated Prisma client в `dist`, чтобы downstream `@exetron/api` не компилировался против stale package types после новых migrations/models
+- для `organizations` template/policy/pack status сейчас materialize через managed JSON metadata, а membership/link/evidence/secret/archive flows местами используют soft-status or delete semantics по текущей phase schema; отдельная physical normalization не требуется для roadmap exit, но остается возможной later hardening wave
+- partner onboarding automation materialized поверх distribution requests: onboarding readiness/package read model и `issue-onboarding` flow дают `/enterprise` отдельный partner handoff workspace с checklist, URLs, grant binding и package summary вместо смешивания onboarding с generic approval flow
+- activation governance surface now spans both sides of the boundary: `/enterprise` shows inventory connector activation requests/readiness, while `/inventory` shows activation state/readiness per connector so rollout approval and runtime readiness stay visible together
+- activation rollout governance is now fully executable from the operator surface: `/enterprise` can refresh runtime rollout state, reconcile drifted installs, apply governance snapshots, and deactivate blocked installed runtimes without dropping to manual API calls
 
 ## Cross-Phase Risks
 - риск смешения scope между adjacent phases, особенно `13/14/15/16`
@@ -159,3 +229,10 @@
 - `PHASE 13`: public storefront, guest/customer online checkout, QR ordering links, tracking tokens, and notification event hooks
 - `PHASE 14`: delivery zones and fees, pickup/dine-in selection, dispatch board, courier/ETA updates, and fulfillment status tracking
 - `PHASE 15`: customer profiles, loyalty balances/ledger, promotion campaigns, customer segment/retention hooks, and storefront repeat-order flow
+- `PHASE 16`: provider adapters, webhook inbox, payment operations/settlements, connector execution logs, and hardware bridge foundations
+- `PHASE 17`: table-backed billing runtime, onboarding billing bootstrap, plans/subscriptions/invoices/quotas/entitlements/trials/resellers
+- `PHASE 18`: inventory runtime, BOM availability, receiving/adjustments/reservations/ledger, stop-list rules, and stock-aware order lifecycle hooks
+- `PHASE 18`: supplier provider runtime policy catalog and `WARN_ONLY` compatibility visibility now layer on top of inventory connector readiness, so provider-governed direct connectors surface rollout debt without hard-breaking current operator handoff paths
+- `PHASE 19`: organizations, governance policies, rollout templates/applications, white-label packs, partner accounts, and operator CRUD breadth across org assets
+- `PHASE 20`: enterprise federation/compliance/secret/deployment/registry foundations plus operator CRUD breadth and redacted secret read models
+- `PHASE 20`: enterprise inventory activation/install/governance now also materializes shared provider runtime policy catalog and applies it in `STRICT` mode for activation/install/runtime-rollout readiness

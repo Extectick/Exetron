@@ -54,6 +54,11 @@ import { DomainEventsModule } from "../domain-events/domain-events.module";
 import { DomainEventsService } from "../domain-events/domain-events.service";
 import { OperationsRealtimeService, KitchenModule } from "../kitchen/kitchen.module";
 import {
+  InventoryModule,
+  InventoryService,
+  type InventoryReservationPlanEntry
+} from "../inventory/inventory.module";
+import {
   resolveKitchenRoutingConfig,
   resolveKitchenStationKey
 } from "../kitchen/kitchen-runtime.util";
@@ -456,7 +461,8 @@ export class OrdersService {
     private readonly audit: AuditService,
     private readonly domainEvents: DomainEventsService,
     private readonly pricingService: PricingService,
-    private readonly realtime: OperationsRealtimeService
+    private readonly realtime: OperationsRealtimeService,
+    private readonly inventoryService: InventoryService
   ) {}
 
   listCarts(
@@ -889,8 +895,20 @@ export class OrdersService {
         throw new BadRequestException("Cart must have at least one item before checkout.");
       }
 
+      const inventoryReservationPlan = await this.inventoryService.buildReservationPlanTx(tx, {
+        tenantId: cart.tenantId,
+        storeId: cart.storeId,
+        items: cart.items.map((item) => ({
+          productId: item.productId,
+          variantId: item.variantId,
+          quantity: item.quantity
+        }))
+      });
+      const orderId = randomUUID();
+
       const order = await tx.order.create({
         data: {
+          id: orderId,
           tenantId: cart.tenantId,
           storeId: cart.storeId,
           cartId: cart.id,
@@ -950,6 +968,13 @@ export class OrdersService {
           }
         }
       });
+
+      await this.inventoryService.reserveOrderInventoryTx(
+        tx,
+        order.tenantId,
+        order.id,
+        inventoryReservationPlan
+      );
 
       await tx.cart.update({
         where: { id: cart.id },
@@ -1212,7 +1237,25 @@ export class OrdersService {
       }
 
       if (dto.toStatus === "CANCELLED") {
+        const releasedReservationCount = await this.inventoryService.releaseOrderInventoryReservationsTx(
+          tx,
+          order.tenantId,
+          order.id
+        );
         const cancelledCount = await this.cancelKitchenTicketsForOrder(tx, order.id);
+
+        if (releasedReservationCount > 0) {
+          await this.recordOrderEvent(tx, {
+            orderId: order.id,
+            tenantId: order.tenantId,
+            storeId: order.storeId,
+            type: "inventory.reservations_released",
+            payload: {
+              orderId: order.id,
+              reservationCount: releasedReservationCount
+            }
+          });
+        }
 
         if (cancelledCount > 0) {
           await this.recordOrderEvent(tx, {
@@ -1223,6 +1266,27 @@ export class OrdersService {
             payload: {
               orderId: order.id,
               cancelledTicketCount: cancelledCount
+            }
+          });
+        }
+      }
+
+      if (dto.toStatus === "COMPLETED") {
+        const consumedReservationCount = await this.inventoryService.consumeOrderInventoryReservationsTx(
+          tx,
+          order.tenantId,
+          order.id
+        );
+
+        if (consumedReservationCount > 0) {
+          await this.recordOrderEvent(tx, {
+            orderId: order.id,
+            tenantId: order.tenantId,
+            storeId: order.storeId,
+            type: "inventory.reservations_consumed",
+            payload: {
+              orderId: order.id,
+              reservationCount: consumedReservationCount
             }
           });
         }
@@ -1783,6 +1847,7 @@ export class OrdersService {
 
     return result.count;
   }
+
 }
 
 @ApiTags("carts")
@@ -1905,7 +1970,7 @@ class OrdersController {
 }
 
 @Module({
-  imports: [AuditModule, DomainEventsModule, PricingModule, KitchenModule],
+  imports: [AuditModule, DomainEventsModule, PricingModule, KitchenModule, InventoryModule],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService]

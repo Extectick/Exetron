@@ -10,7 +10,7 @@
 Довести integrations layer до production-grade уровня через real payment providers, refunds/voids/settlements, fiscal adapters, printer adapters, terminal integrations, scanner/barcode flows, webhooks и hardware bridge contracts.
 
 ## Status
-`Not Started`
+`Completed`
 
 ## Dependencies
 - `PHASE 11`
@@ -26,9 +26,9 @@
 
 # Epic 1 — Domain & Data
 ## Tasks
-- [ ] Определить provider integration entities and states for real acquiring flows
-- [ ] Определить refund, void and settlement domain boundaries
-- [ ] Определить fiscal, printer, terminal, scanner/barcode and hardware bridge contracts
+- [x] Определить provider integration entities and states for real acquiring flows
+- [x] Определить refund, void and settlement domain boundaries
+- [x] Определить fiscal, printer, terminal, scanner/barcode and hardware bridge contracts
 
 ## Deliverables
 - provider integration state model
@@ -36,8 +36,8 @@
 - fiscal/printer/terminal/scanner/hardware contracts
 
 ## Acceptance
-- [ ] Real provider model расширяет existing payments abstraction, а не дублирует ее
-- [ ] Hardware-related contracts отделены от channel-specific UI logic
+- [x] Real provider model расширяет existing payments abstraction, а не дублирует ее
+- [x] Hardware-related contracts отделены от channel-specific UI logic
 
 ## Notes/Risks
 - риск разнести states по provider-specific branches
@@ -47,9 +47,9 @@
 
 # Epic 2 — Runtime & API
 ## Tasks
-- [ ] Определить webhook framework and connector contracts
-- [ ] Определить runtime path для refund, void and settlement processing
-- [ ] Определить adapter runtime boundaries для fiscal and printer execution
+- [x] Определить webhook framework and connector contracts
+- [x] Определить runtime path для refund, void and settlement processing
+- [x] Определить adapter runtime boundaries для fiscal and printer execution
 
 ## Deliverables
 - webhook framework contract
@@ -57,8 +57,8 @@
 - adapter runtime boundary
 
 ## Acceptance
-- [ ] Webhook and connector handling имеют idempotent runtime assumptions
-- [ ] Refund and settlement flows совместимы с existing payment intent/allocation model
+- [x] Webhook and connector handling имеют idempotent runtime assumptions
+- [x] Refund and settlement flows совместимы с existing payment intent/allocation model
 
 ## Notes/Risks
 - риск делать provider logic синхронно без retry policy
@@ -68,9 +68,9 @@
 
 # Epic 3 — UI/Channel Surfaces
 ## Tasks
-- [ ] Определить admin surfaces для provider and adapter management
-- [ ] Определить operator touchpoints для printer and fiscal failure handling
-- [ ] Определить visibility requirements для settlement and refund states
+- [x] Определить admin surfaces для provider and adapter management
+- [x] Определить operator touchpoints для printer and fiscal failure handling
+- [x] Определить visibility requirements для settlement and refund states
 
 ## Deliverables
 - provider management UI scope
@@ -78,8 +78,8 @@
 - settlement/refund visibility requirements
 
 ## Acceptance
-- [ ] Понятны user-facing surfaces для integrations management
-- [ ] Failure visibility связана с audit and observability patterns
+- [x] Понятны user-facing surfaces для integrations management
+- [x] Failure visibility связана с audit and observability patterns
 
 ## Notes/Risks
 - риск сделать adapter-specific admin UI без общего contract layer
@@ -89,9 +89,9 @@
 
 # Epic 4 — Integrations/Security/Async
 ## Tasks
-- [ ] Определить secret handling and rotation requirements для providers and adapters
-- [ ] Определить async retries, dead-letter and replay expectations
-- [ ] Определить security boundaries для webhook authenticity and hardware bridge trust
+- [x] Определить secret handling and rotation requirements для providers and adapters
+- [x] Определить async retries, dead-letter and replay expectations
+- [x] Определить security boundaries для webhook authenticity and hardware bridge trust
 
 ## Deliverables
 - integrations security policy
@@ -99,8 +99,8 @@
 - webhook/hardware trust model
 
 ## Acceptance
-- [ ] Внешние integrations не полагаются на небезопасные implicit secrets patterns
-- [ ] Retry/replay policy покрывает webhook and provider failure scenarios
+- [x] Внешние integrations не полагаются на небезопасные implicit secrets patterns
+- [x] Retry/replay policy покрывает webhook and provider failure scenarios
 
 ## Notes/Risks
 - риск оставить security assumptions outside docs
@@ -110,9 +110,9 @@
 
 # Epic 5 — Tests/Docs/Ops
 ## Tasks
-- [ ] Зафиксировать acceptance scenarios для providers, refunds, settlements, fiscal, printers, webhooks and hardware bridges
-- [ ] Обновить tracker после первых integrations deliverables
-- [ ] Добавить ADR при изменении integration boundary or payment state architecture
+- [x] Зафиксировать acceptance scenarios для providers, refunds, settlements, fiscal, printers, webhooks and hardware bridges
+- [x] Обновить tracker после первых integrations deliverables
+- [x] Добавить ADR при изменении integration boundary or payment state architecture
 
 ## Deliverables
 - integrations acceptance checklist
@@ -120,8 +120,8 @@
 - ADR if needed
 
 ## Acceptance
-- [ ] Все backlog items PHASE 16 покрыты в этой фазе и не размазаны по соседним
-- [ ] Документы позволяют перейти от simulated providers к production-grade integration design
+- [x] Все backlog items PHASE 16 покрыты в этой фазе и не размазаны по соседним
+- [x] Документы позволяют перейти от simulated providers к production-grade integration design
 
 ## Notes/Risks
 - риск не описать observability for external failures
@@ -130,7 +130,14 @@
 ---
 
 ## Done
-- _пусто_
+- provider-neutral adapter execution вынесен в `payment-adapter.util` и подключен в allocation processing path без слома existing payment intent/allocation semantics
+- добавлены `PaymentOperation`, `PaymentSettlement`, `PaymentWebhookEvent`, `ConnectorExecutionLog`, `HardwareJob`, `HardwareReceipt` surfaces и runtime bootstrap их persistence tables
+- реализованы API endpoints для operations, settlements, public webhooks, connector executions и hardware jobs/receipts
+- webhook path стал idempotent по `providerKey + deliveryId` и умеет подтверждать async provider attempt/operation flows
+- добавлена admin page `/integrations` для operator visibility по webhook/connector/hardware activity
+- forward-only Prisma migration `20260319203427_phase16_20_storage_consolidation` регистрирует phase16 persistence surfaces и tenant-scoped RLS policies
+- post-migration cleanup: phase16 runtime bootstrap DDL удален; payments module теперь работает только на migration-applied storage baseline
+- добавлен e2e `phase16-integrations`; regression e2e `phase7-payments` пройден
 
 ## In Progress
 - _пусто_
@@ -139,15 +146,14 @@
 - _пусто_
 
 ## Next
-- Определить provider integration state model
-- Зафиксировать webhook framework
-- Определить refund, settlement and adapter boundaries
+- сохранить migration-first deploy discipline без возврата к provider-local table bootstrap
+- сохранить current provider-neutral runtime contracts без перехода на provider-specific forks
 
 ## Phase Exit Summary
-- [ ] Real payment provider path определен
-- [ ] Refund, void and settlement flows определены
-- [ ] Fiscal adapter contracts определены
-- [ ] Printer adapter contracts определены
-- [ ] Terminal integrations и scanner/barcode flows определены
-- [ ] Webhook and hardware bridge contracts определены
-- [ ] Progress tracker обновлен
+- [x] Real payment provider path определен
+- [x] Refund, void and settlement flows определены
+- [x] Fiscal adapter contracts определены
+- [x] Printer adapter contracts определены
+- [x] Terminal integrations и scanner/barcode flows определены
+- [x] Webhook and hardware bridge contracts определены
+- [x] Progress tracker обновлен

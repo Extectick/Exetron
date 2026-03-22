@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
+    "test:e2e": "node ./scripts/test-e2e.mjs"
   },
   "dependencies": {
     "@exetron/config": "workspace:*",
