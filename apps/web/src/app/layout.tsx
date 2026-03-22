@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Sora } from "next/font/google";
 import { createElement, type ReactNode } from "react";
 import { AuthProvider } from "../components/auth-provider";
+import "antd/dist/reset.css";
 import "./globals.css";
 
 const sora = Sora({
@@ -16,8 +17,8 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Exetron Control Plane",
-  description: "Platform Core admin workspace"
+  title: "Exetron Admin",
+  description: "Refine-powered Exetron administration workspace"
 };
 
 export default function RootLayout({

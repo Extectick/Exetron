@@ -1,9 +1,10 @@
 import type {
-  BrandingConfigDto,
+  AnalyticsPrecomputeRequest,
   AnalyticsSnapshotDto,
   AuthMeResponse,
   CustomerProfileDto,
   AuthTokensResponse,
+  BrandingConfigDto,
   CountryProfileDto,
   CustomizationEvaluationDto,
   CustomizationRuleDto,
@@ -11,10 +12,10 @@ import type {
   FulfillmentDispatchBoardItemDto,
   FulfillmentOrderProjectionDto,
   KitchenBoardEntryDto,
+  KitchenTicketDto,
   KioskAccessTokenDto,
   KioskBootstrapResponse,
   KioskCheckoutResponse,
-  KitchenTicketDto,
   ListResponse,
   LocalizationContextDto,
   LocalizationLanguagePackDto,
@@ -23,12 +24,17 @@ import type {
   LocalizedContentDto,
   LocalizedTemplateDto,
   LoginRequest,
+  ObservabilityStatusResponse,
+  OnboardingBootstrapRequest,
+  OnboardingBootstrapResponse,
   OwnerCabinetDashboardDto,
+  OwnerCabinetDashboardResponse,
   PaymentAttemptDto,
   PaymentIntentDto,
   PaymentIntentListItemDto,
   PaymentProviderConfigDto,
   PaymentReconciliationSummaryDto,
+  PermissionDto,
   PromotionCampaignDto,
   RefreshRequest,
   RenderLocalizedTemplateResponse,
@@ -49,18 +55,34 @@ import type {
 
 export const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
+export interface HealthCheckResponse {
+  status: string;
+  service: string;
+  uptimeSeconds: number;
+  timestamp: string;
+}
+
+export interface ReadinessResponse {
+  status: string;
+  service: string;
+  dependencies: {
+    database: string;
+  };
+  timestamp: string;
+}
+
 export class ApiError extends Error {
   constructor(message: string, readonly statusCode: number) {
     super(message);
   }
 }
 
-async function readBody<T>(response: Response): Promise<T> {
+export async function readBody<T>(response: Response): Promise<T> {
   const text = await response.text();
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
-function withSearchParams(
+export function withSearchParams(
   path: string,
   params: Record<string, string | null | undefined>
 ): string {
@@ -76,7 +98,7 @@ function withSearchParams(
   return query ? `${path}?${query}` : path;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init: RequestInit = {},
   accessToken?: string
@@ -100,6 +122,28 @@ async function request<T>(
   }
 
   return readBody<T>(response);
+}
+
+export async function requestText(
+  path: string,
+  init: RequestInit = {},
+  accessToken?: string
+): Promise<string> {
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(init.headers ?? {})
+    },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new ApiError(text || `Request failed with ${response.status}`, response.status);
+  }
+
+  return response.text();
 }
 
 export function login(payload: LoginRequest): Promise<AuthTokensResponse> {
@@ -138,6 +182,14 @@ export function listResource<T>(
   return request<ListResponse<T>>(endpoint, {}, accessToken);
 }
 
+export function getResource<T>(
+  endpoint: string,
+  id: string,
+  accessToken: string
+): Promise<T> {
+  return request<T>(`${endpoint}/${id}`, {}, accessToken);
+}
+
 export function createResource<T>(
   endpoint: string,
   payload: Record<string, unknown>,
@@ -167,6 +219,41 @@ export function patchResource<T>(
     },
     accessToken
   );
+}
+
+export function putResource<T>(
+  endpoint: string,
+  payload: Record<string, unknown>,
+  accessToken: string
+): Promise<T> {
+  return request<T>(
+    endpoint,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function getHealthStatus(): Promise<HealthCheckResponse> {
+  return request<HealthCheckResponse>("/health");
+}
+
+export function getReadinessStatus(): Promise<ReadinessResponse> {
+  return request<ReadinessResponse>("/health/readiness");
+}
+
+export function getMetricsText(): Promise<string> {
+  return requestText("/health/metrics");
+}
+
+export function getObservabilityStatus(accessToken: string): Promise<ObservabilityStatusResponse> {
+  return request<ObservabilityStatusResponse>("/health/observability", {}, accessToken);
+}
+
+export function listPermissions(accessToken: string): Promise<ListResponse<PermissionDto>> {
+  return request<ListResponse<PermissionDto>>("/permissions", {}, accessToken);
 }
 
 export function getTenantSettings(
@@ -498,6 +585,31 @@ export function upsertFeatureFlag(
   );
 }
 
+export function issueKioskAccessToken(
+  accessToken: string,
+  deviceId: string
+): Promise<KioskAccessTokenDto> {
+  return request<KioskAccessTokenDto>(
+    `/devices/${deviceId}/kiosk-access-token`,
+    { method: "POST" },
+    accessToken
+  );
+}
+
+export function onboardingBootstrap(
+  accessToken: string,
+  payload: OnboardingBootstrapRequest
+): Promise<OnboardingBootstrapResponse> {
+  return request<OnboardingBootstrapResponse>(
+    "/onboarding/bootstrap",
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
 export function listBrandingConfigs(
   accessToken: string,
   params: {
@@ -528,6 +640,21 @@ export function createBrandingConfig(
     "/customization/branding",
     {
       method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function patchBrandingConfig(
+  accessToken: string,
+  id: string,
+  payload: Record<string, unknown>
+): Promise<BrandingConfigDto> {
+  return request<BrandingConfigDto>(
+    `/customization/branding/${id}`,
+    {
+      method: "PATCH",
       body: JSON.stringify(payload)
     },
     accessToken
@@ -569,6 +696,21 @@ export function createCustomizationRule(
     "/customization/rules",
     {
       method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function patchCustomizationRule(
+  accessToken: string,
+  id: string,
+  payload: Record<string, unknown>
+): Promise<CustomizationRuleDto> {
+  return request<CustomizationRuleDto>(
+    `/customization/rules/${id}`,
+    {
+      method: "PATCH",
       body: JSON.stringify(payload)
     },
     accessToken
@@ -727,6 +869,13 @@ export function listKitchenTickets(
   );
 }
 
+export function getKitchenTicket(
+  accessToken: string,
+  ticketId: string
+): Promise<KitchenTicketDto> {
+  return request<KitchenTicketDto>(`/kitchen/tickets/${ticketId}`, {}, accessToken);
+}
+
 export function transitionKitchenTicket(
   accessToken: string,
   ticketId: string,
@@ -788,7 +937,7 @@ export function createPaymentProviderConfig(
     allowedChannels?: Array<"ADMIN" | "POS" | "KIOSK" | "DELIVERY">;
     autoConfirmOrderOnSuccess?: boolean;
     settings?: Record<string, unknown> | null;
-    secrets?: Record<string, string> | null;
+    secrets?: Record<string, unknown> | null;
   }
 ): Promise<PaymentProviderConfigDto> {
   return request<PaymentProviderConfigDto>(
@@ -814,7 +963,7 @@ export function patchPaymentProviderConfig(
     allowedChannels?: Array<"ADMIN" | "POS" | "KIOSK" | "DELIVERY">;
     autoConfirmOrderOnSuccess?: boolean;
     settings?: Record<string, unknown> | null;
-    secrets?: Record<string, string> | null;
+    secrets?: Record<string, unknown> | null;
   }
 ): Promise<PaymentProviderConfigDto> {
   return request<PaymentProviderConfigDto>(
@@ -862,6 +1011,37 @@ export function listPaymentAttempts(
   );
 }
 
+export function processPaymentAllocation(
+  accessToken: string,
+  intentId: string,
+  allocationId: string,
+  payload: { providerKey?: string | null }
+): Promise<PaymentIntentDto> {
+  return request<PaymentIntentDto>(
+    `/payments/intents/${intentId}/allocations/${allocationId}/process`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
+export function cancelPaymentIntent(
+  accessToken: string,
+  intentId: string,
+  payload: { reason?: string | null } = {}
+): Promise<PaymentIntentDto> {
+  return request<PaymentIntentDto>(
+    `/payments/intents/${intentId}/cancel`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    },
+    accessToken
+  );
+}
+
 export function getPaymentReconciliationSummary(
   accessToken: string,
   params: {
@@ -876,7 +1056,24 @@ export function getPaymentReconciliationSummary(
   );
 }
 
-export function getOwnerCabinetDashboard(
+export function getOwnerCabinetDashboardView(
+  accessToken: string,
+  params: {
+    tenantId?: string;
+    storeId?: string;
+    periodStart?: string;
+    periodEnd?: string;
+    mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
+  }
+): Promise<OwnerCabinetDashboardResponse> {
+  return request<OwnerCabinetDashboardResponse>(
+    withSearchParams("/analytics/owner-cabinet", params),
+    {},
+    accessToken
+  );
+}
+
+export async function getOwnerCabinetDashboard(
   accessToken: string,
   params: {
     tenantId?: string;
@@ -886,11 +1083,8 @@ export function getOwnerCabinetDashboard(
     mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
   }
 ): Promise<OwnerCabinetDashboardDto> {
-  return request<OwnerCabinetDashboardDto>(
-    withSearchParams("/analytics/owner-cabinet", params),
-    {},
-    accessToken
-  );
+  const response = await getOwnerCabinetDashboardView(accessToken, params);
+  return response.dashboard;
 }
 
 export function listAnalyticsSnapshots(
@@ -953,6 +1147,14 @@ export function createAnalyticsPrecomputeRun(
     },
     accessToken
   );
+}
+
+export async function precomputeAnalyticsSnapshot(
+  accessToken: string,
+  payload: AnalyticsPrecomputeRequest
+): Promise<AnalyticsSnapshotDto> {
+  const response = await createAnalyticsPrecomputeRun(accessToken, payload);
+  return response.snapshot;
 }
 
 export function getKioskBootstrap(

@@ -1,6 +1,6 @@
 "use client";
 
-import type { AuthMeResponse, AuthTokensResponse, LoginRequest } from "@exetron/contracts";
+import type { LoginRequest } from "@exetron/contracts";
 import {
   createElement,
   createContext,
@@ -13,11 +13,14 @@ import {
   useMemo,
   useState
 } from "react";
-import { login as loginRequest, logout as logoutRequest, me } from "../lib/api";
-
-interface StoredSession extends AuthTokensResponse {
-  me?: AuthMeResponse;
-}
+import {
+  createSession,
+  destroySession,
+  readStoredSession,
+  refreshStoredSessionProfile,
+  subscribeToSessionChanges,
+  type StoredSession
+} from "../lib/session";
 
 interface AuthContextValue {
   session: StoredSession | null;
@@ -27,47 +30,39 @@ interface AuthContextValue {
   refreshProfile: () => Promise<void>;
 }
 
-const storageKey = "exetron.session";
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }): ReactElement {
   const [session, setSession] = useState<StoredSession | null>(null);
   const [status, setStatus] = useState<AuthContextValue["status"]>("loading");
-  const persistSession = useCallback((nextSession: StoredSession | null) => {
-    if (!nextSession) {
-      localStorage.removeItem(storageKey);
-      return;
-    }
-
-    localStorage.setItem(storageKey, JSON.stringify(nextSession));
-  }, []);
-
   const hydrateSession = useCallback(async () => {
-    const rawSession = localStorage.getItem(storageKey);
-
-    if (!rawSession) {
-      setStatus("guest");
+    const storedSession = readStoredSession();
+    if (!storedSession) {
+      startTransition(() => {
+        setSession(null);
+        setStatus("guest");
+      });
       return;
     }
 
-    try {
-      const parsedSession = JSON.parse(rawSession) as StoredSession;
-      const meResponse = await me(parsedSession.accessToken);
-      const nextSession = { ...parsedSession, me: meResponse };
-      startTransition(() => {
-        setSession(nextSession);
-        setStatus("authenticated");
-      });
-      persistSession(nextSession);
-    } catch {
-      persistSession(null);
-      setSession(null);
-      setStatus("guest");
-    }
-  }, [persistSession]);
+    const refreshedSession = await refreshStoredSessionProfile(storedSession);
+
+    startTransition(() => {
+      setSession(refreshedSession);
+      setStatus(refreshedSession?.me ? "authenticated" : "guest");
+    });
+  }, []);
 
   useEffect(() => {
     void hydrateSession();
+
+    return subscribeToSessionChanges(() => {
+      const currentSession = readStoredSession();
+      startTransition(() => {
+        setSession(currentSession);
+        setStatus(currentSession?.me ? "authenticated" : "guest");
+      });
+    });
   }, [hydrateSession]);
 
   const value = useMemo<AuthContextValue>(
@@ -75,45 +70,28 @@ export function AuthProvider({ children }: { children: ReactNode }): ReactElemen
       session,
       status,
       async login(payload) {
-        const authTokens = await loginRequest(payload);
-        const meResponse = await me(authTokens.accessToken);
-        const nextSession = { ...authTokens, me: meResponse };
+        const nextSession = await createSession(payload);
         startTransition(() => {
           setSession(nextSession);
           setStatus("authenticated");
         });
-        persistSession(nextSession);
       },
       async logout() {
-        if (session) {
-          try {
-            await logoutRequest(session.refreshToken, session.accessToken);
-          } catch {
-            // Best-effort logout is sufficient for the admin shell.
-          }
-        }
-
+        await destroySession(session);
         startTransition(() => {
           setSession(null);
           setStatus("guest");
         });
-        persistSession(null);
       },
       async refreshProfile() {
-        if (!session) {
-          return;
-        }
-
-        const meResponse = await me(session.accessToken);
-        const nextSession = { ...session, me: meResponse };
+        const nextSession = await refreshStoredSessionProfile(session);
         startTransition(() => {
           setSession(nextSession);
-          setStatus("authenticated");
+          setStatus(nextSession?.me ? "authenticated" : "guest");
         });
-        persistSession(nextSession);
       }
     }),
-    [persistSession, session, status]
+    [session, status]
   );
 
   return createElement(AuthContext.Provider, { value }, children);
