@@ -1,6 +1,6 @@
 "use client";
 
-import type { AnalyticsSnapshotDto, OwnerCabinetDashboardDto, OwnerCabinetDashboardResponse } from "@exetron/contracts";
+import type { AnalyticsSnapshotDto, OwnerCabinetDashboardDto } from "@exetron/contracts";
 import { Alert, Card, Descriptions, Select, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -37,7 +37,9 @@ function textValue(value: unknown, fallback = "n/a") {
   return fallback;
 }
 
-function isDashboardMode(value: unknown): value is OwnerCabinetDashboardResponse["mode"] {
+type DashboardReadMode = "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
+
+function isDashboardMode(value: unknown): value is DashboardReadMode {
   return value === "LIVE" || value === "PREFER_SNAPSHOT" || value === "SNAPSHOT_ONLY";
 }
 
@@ -53,8 +55,8 @@ export default function OwnerCabinetPage() {
   const [storeId, setStoreId] = useState("");
   const [periodStart, setPeriodStart] = useState(defaultPeriodStart());
   const [periodEnd, setPeriodEnd] = useState(() => new Date().toISOString().slice(0, 10));
-  const [mode, setMode] = useState<OwnerCabinetDashboardResponse["mode"]>("LIVE");
-  const [dashboard, setDashboard] = useState<OwnerCabinetDashboardResponse | null>(null);
+  const [mode, setMode] = useState<DashboardReadMode>("LIVE");
+  const [dashboard, setDashboard] = useState<OwnerCabinetDashboardDto | null>(null);
   const [snapshots, setSnapshots] = useState<AnalyticsSnapshotDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -105,7 +107,7 @@ export default function OwnerCabinetPage() {
     void loadWorkspace();
   }, [loadWorkspace]);
 
-  const selectedDashboard = dashboard?.dashboard;
+  const selectedDashboard = dashboard;
 
   const topProductColumns: ColumnsType<OwnerCabinetDashboardDto["topProducts"][number]> = [
     { title: "Product", dataIndex: "productName" },
@@ -135,7 +137,12 @@ export default function OwnerCabinetPage() {
       title: "Period",
       render: (_: unknown, record: AnalyticsSnapshotDto) => `${record.periodStart} → ${record.periodEnd}`
     },
-    { title: "Source", dataIndex: "source", render: (value: unknown) => <Tag>{textValue(value)}</Tag> }
+    {
+      title: "Artifact",
+      render: (_: unknown, record: AnalyticsSnapshotDto) => (
+        <Tag>{textValue(record.artifactStatus)}</Tag>
+      )
+    }
   ];
 
   return (
@@ -226,7 +233,10 @@ export default function OwnerCabinetPage() {
                 value: `${selectedDashboard.averageOrderValue} ${selectedDashboard.currency}`
               },
               { label: "Paid orders", value: `${selectedDashboard.paidOrders} / ${selectedDashboard.totalOrders}` },
-              { label: "Mode", value: `${dashboard?.mode ?? mode} · ${textValue(dashboard?.source, "n/a")}` }
+              {
+                label: "Mode",
+                value: `${mode} · ${selectedDashboard.dataSource}`
+              }
             ].map((entry) => (
               <article className="stat-card" key={entry.label}>
                 <span className="eyebrow">{entry.label}</span>
@@ -243,9 +253,9 @@ export default function OwnerCabinetPage() {
               <Descriptions.Item label="Generated at">
                 {new Date(selectedDashboard.generatedAt).toLocaleString()}
               </Descriptions.Item>
-              <Descriptions.Item label="Snapshot ID">{textValue(dashboard?.snapshotId)}</Descriptions.Item>
+              <Descriptions.Item label="Snapshot ID">{textValue(selectedDashboard.snapshotId)}</Descriptions.Item>
               <Descriptions.Item label="Source">
-                <Tag>{textValue(dashboard?.source)}</Tag>
+                <Tag>{selectedDashboard.dataSource}</Tag>
               </Descriptions.Item>
             </Descriptions>
           </Card>

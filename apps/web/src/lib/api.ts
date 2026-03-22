@@ -1,5 +1,4 @@
 import type {
-  AnalyticsPrecomputeRequest,
   AnalyticsSnapshotDto,
   AuthMeResponse,
   CustomerProfileDto,
@@ -24,11 +23,10 @@ import type {
   LocalizedContentDto,
   LocalizedTemplateDto,
   LoginRequest,
-  ObservabilityStatusResponse,
+  ObservabilityStatusDto,
   OnboardingBootstrapRequest,
   OnboardingBootstrapResponse,
   OwnerCabinetDashboardDto,
-  OwnerCabinetDashboardResponse,
   PaymentAttemptDto,
   PaymentIntentDto,
   PaymentIntentListItemDto,
@@ -48,6 +46,7 @@ import type {
   StoreFulfillmentConfigDto,
   StoreSettingDto,
   TenantSettingDto,
+  CreateAnalyticsPrecomputeRequest,
   UpsertFeatureFlagRequest,
   UpsertStoreSettingRequest,
   UpsertTenantSettingRequest
@@ -248,8 +247,8 @@ export function getMetricsText(): Promise<string> {
   return requestText("/health/metrics");
 }
 
-export function getObservabilityStatus(accessToken: string): Promise<ObservabilityStatusResponse> {
-  return request<ObservabilityStatusResponse>("/health/observability", {}, accessToken);
+export function getObservabilityStatus(accessToken: string): Promise<ObservabilityStatusDto> {
+  return request<ObservabilityStatusDto>("/health/observability", {}, accessToken);
 }
 
 export function listPermissions(accessToken: string): Promise<ListResponse<PermissionDto>> {
@@ -1065,8 +1064,8 @@ export function getOwnerCabinetDashboardView(
     periodEnd?: string;
     mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
   }
-): Promise<OwnerCabinetDashboardResponse> {
-  return request<OwnerCabinetDashboardResponse>(
+): Promise<OwnerCabinetDashboardDto> {
+  return request<OwnerCabinetDashboardDto>(
     withSearchParams("/analytics/owner-cabinet", params),
     {},
     accessToken
@@ -1083,8 +1082,7 @@ export async function getOwnerCabinetDashboard(
     mode?: "LIVE" | "PREFER_SNAPSHOT" | "SNAPSHOT_ONLY";
   }
 ): Promise<OwnerCabinetDashboardDto> {
-  const response = await getOwnerCabinetDashboardView(accessToken, params);
-  return response.dashboard;
+  return getOwnerCabinetDashboardView(accessToken, params);
 }
 
 export function listAnalyticsSnapshots(
@@ -1151,7 +1149,7 @@ export function createAnalyticsPrecomputeRun(
 
 export async function precomputeAnalyticsSnapshot(
   accessToken: string,
-  payload: AnalyticsPrecomputeRequest
+  payload: CreateAnalyticsPrecomputeRequest
 ): Promise<AnalyticsSnapshotDto> {
   const response = await createAnalyticsPrecomputeRun(accessToken, payload);
   return response.snapshot;
@@ -1184,19 +1182,6 @@ export function kioskCheckout(payload: {
     method: "POST",
     body: JSON.stringify(payload)
   });
-}
-
-export function issueKioskAccessToken(
-  accessToken: string,
-  deviceId: string
-): Promise<KioskAccessTokenDto> {
-  return request<KioskAccessTokenDto>(
-    `/devices/${deviceId}/kiosk-access-token`,
-    {
-      method: "POST"
-    },
-    accessToken
-  );
 }
 
 export function getStorefrontBootstrap(params: {

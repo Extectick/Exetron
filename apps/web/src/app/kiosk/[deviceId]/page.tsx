@@ -31,7 +31,7 @@ export default function KioskDevicePage({ params }: KioskPageProps) {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const kioskAccessToken = searchParams.get("token") ?? "";
+  const kioskAccessToken = searchParams?.get("token") ?? "";
 
   useEffect(() => {
     void params.then((resolved) => setDeviceId(resolved.deviceId));

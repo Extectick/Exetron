@@ -143,7 +143,7 @@ export default function DevicesPage() {
               <Typography.Text code>{lastToken.deviceId}</Typography.Text>
               <Typography.Text type="secondary">Token</Typography.Text>
               <Typography.Text code copyable style={{ wordBreak: "break-all" }}>
-                {lastToken.token}
+                {lastToken.accessToken}
               </Typography.Text>
               <Typography.Text type="secondary">
                 Expires at {new Date(lastToken.expiresAt).toLocaleString()}

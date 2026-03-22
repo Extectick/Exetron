@@ -18,7 +18,7 @@ export default function OrderTrackingPage({ params }: OrderTrackingPageProps) {
   > | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const trackingToken = searchParams.get("token") ?? "";
+  const trackingToken = searchParams?.get("token") ?? "";
 
   useEffect(() => {
     void params.then((resolved) => setOrderId(resolved.orderId));

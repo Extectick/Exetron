@@ -1,6 +1,6 @@
 "use client";
 
-import type { ObservabilityStatusResponse } from "@exetron/contracts";
+import type { ObservabilityStatusDto } from "@exetron/contracts";
 import { Alert, Card, Descriptions, Space, Tag } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../../../components/auth-provider";
@@ -8,7 +8,7 @@ import { getObservabilityStatus } from "../../../lib/api";
 
 export default function ObservabilityPage() {
   const { session } = useAuth();
-  const [status, setStatus] = useState<ObservabilityStatusResponse | null>(null);
+  const [status, setStatus] = useState<ObservabilityStatusDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -56,8 +56,12 @@ export default function ObservabilityPage() {
           <Space direction="vertical" size="middle" style={{ width: "100%" }}>
             <Descriptions bordered column={1}>
               <Descriptions.Item label="Overall">
-                <Tag color={status.status === "configured" ? "green" : "gold"}>{status.status}</Tag>
+                <Tag color={status.metrics.externalExportEnabled ? "green" : "gold"}>
+                  {status.metrics.externalExportEnabled ? "configured" : "partial"}
+                </Tag>
               </Descriptions.Item>
+              <Descriptions.Item label="Service">{status.serviceName}</Descriptions.Item>
+              <Descriptions.Item label="Exporter mode">{status.exporterMode}</Descriptions.Item>
               <Descriptions.Item label="Metrics">
                 <pre>{JSON.stringify(status.metrics, null, 2)}</pre>
               </Descriptions.Item>
@@ -67,13 +71,13 @@ export default function ObservabilityPage() {
               <Descriptions.Item label="Alerts">
                 <pre>{JSON.stringify(status.alerts, null, 2)}</pre>
               </Descriptions.Item>
-              <Descriptions.Item label="Checked at">{new Date(status.timestamp).toLocaleString()}</Descriptions.Item>
+              <Descriptions.Item label="Checked at">{new Date(status.generatedAt).toLocaleString()}</Descriptions.Item>
             </Descriptions>
             <Alert
-              type={status.status === "configured" ? "success" : "warning"}
+              type={status.metrics.externalExportEnabled ? "success" : "warning"}
               showIcon
               message={
-                status.status === "configured"
+                status.metrics.externalExportEnabled
                   ? "Operational export channels are wired and visible to the admin shell."
                   : "One or more export channels are still partial. Review env wiring before rollout."
               }

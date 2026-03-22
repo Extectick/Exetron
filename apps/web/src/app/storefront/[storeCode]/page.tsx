@@ -51,8 +51,8 @@ export default function StorefrontPage({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const qrAccessToken = searchParams.get("qr") ?? "";
-  const customerSessionTokenFromQuery = searchParams.get("customerToken") ?? "";
+  const qrAccessToken = searchParams?.get("qr") ?? "";
+  const customerSessionTokenFromQuery = searchParams?.get("customerToken") ?? "";
 
   useEffect(() => {
     void params.then((resolved) => setStoreCode(resolved.storeCode));

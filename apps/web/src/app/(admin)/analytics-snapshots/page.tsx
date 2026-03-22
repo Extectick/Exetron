@@ -186,18 +186,16 @@ export default function AnalyticsSnapshotsPage() {
             <Space direction="vertical" size="middle" style={{ width: "100%" }}>
               <Descriptions bordered column={1}>
                 <Descriptions.Item label="Snapshot ID">{selected.id}</Descriptions.Item>
-                <Descriptions.Item label="Kind">{selected.kind}</Descriptions.Item>
-                <Descriptions.Item label="Source">
-                  <Tag>{textValue(selected.source)}</Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="Period">
-                  {selected.periodStart} → {selected.periodEnd}
-                </Descriptions.Item>
-                <Descriptions.Item label="Created">{formatDate(selected.createdAt)}</Descriptions.Item>
-                <Descriptions.Item label="Metadata">
-                  {jsonText(selected.metadata)}
-                </Descriptions.Item>
-              </Descriptions>
+              <Descriptions.Item label="Kind">{selected.kind}</Descriptions.Item>
+              <Descriptions.Item label="Artifact status">
+                <Tag>{textValue(selected.artifactStatus)}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Period">
+                {selected.periodStart} → {selected.periodEnd}
+              </Descriptions.Item>
+              <Descriptions.Item label="Created">{formatDate(selected.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label="Artifact key">{selected.artifactKey}</Descriptions.Item>
+            </Descriptions>
               <Typography.Title level={5} style={{ margin: 0 }}>
                 Payload
               </Typography.Title>

@@ -11,7 +11,7 @@ import {
   type HealthCheckResponse,
   type ReadinessResponse
 } from "../../../lib/api";
-import type { ObservabilityStatusResponse } from "@exetron/contracts";
+import type { ObservabilityStatusDto } from "@exetron/contracts";
 
 type RemoteStatus = "loading" | "ok" | "degraded" | "offline";
 
@@ -33,7 +33,7 @@ export default function DashboardPage() {
   const { session } = useAuth();
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
   const [readiness, setReadiness] = useState<ReadinessResponse | null>(null);
-  const [observability, setObservability] = useState<ObservabilityStatusResponse | null>(null);
+  const [observability, setObservability] = useState<ObservabilityStatusDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -177,14 +177,18 @@ export default function DashboardPage() {
         <Col xs={24} xl={8}>
           <Card title="Observability boundary" variant="borderless">
             <Space direction="vertical" size={8}>
-              <Tag color={statusColor(observability?.status === "configured" ? "ok" : "degraded")}>
-                {observability?.status ?? "loading"}
+              <Tag
+                color={statusColor(
+                  observability && observability.metrics.externalExportEnabled ? "ok" : "degraded"
+                )}
+              >
+                {observability ? (observability.metrics.externalExportEnabled ? "configured" : "partial") : "loading"}
               </Tag>
               <Typography.Text type="secondary">
-                Metrics: {observability?.metrics.target ?? "unconfigured"}
+                Metrics: {observability?.metrics.endpoint ?? "unconfigured"}
               </Typography.Text>
               <Typography.Text type="secondary">
-                Tracing: {observability?.tracing.target ?? "unconfigured"}
+                Tracing: {observability?.tracing.endpoint ?? "unconfigured"}
               </Typography.Text>
             </Space>
           </Card>

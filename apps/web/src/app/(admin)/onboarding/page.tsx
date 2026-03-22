@@ -35,7 +35,7 @@ export default function OnboardingPage() {
 
   type OnboardingFormValues = {
     tenant: { slug: string; name: string };
-    store: { code: string; name: string; timezone: string; brandId?: string };
+    store: { code: string; name: string; timezone: string };
     devices: Array<{
       code: string;
       name: string;
@@ -72,15 +72,15 @@ export default function OnboardingPage() {
         store: {
           code: readInputText(values.store.code),
           name: readInputText(values.store.name),
-          timezone: readInputText(values.store.timezone),
-          brandId: readInputText(values.store.brandId) ? readInputText(values.store.brandId) : undefined
+          timezone: readInputText(values.store.timezone)
         },
         devices: values.devices.map((device) => ({
           code: readInputText(device.code),
           name: readInputText(device.name),
-          type: device.type
-        })),
-        issueKioskAccessToken: values.issueKioskAccessToken ?? false
+          type: device.type,
+          issueKioskAccessToken:
+            (values.issueKioskAccessToken ?? false) && device.type === "KIOSK"
+        }))
       });
 
       setResult(response);
@@ -116,7 +116,7 @@ export default function OnboardingPage() {
               layout="vertical"
               initialValues={{
                 tenant: { slug: "", name: "" },
-                store: { code: "", name: "", timezone: "Asia/Novosibirsk", brandId: "" },
+                store: { code: "", name: "", timezone: "Asia/Novosibirsk" },
                 devices: [
                   { code: "kiosk-1", name: "Kiosk 1", type: "KIOSK" },
                   { code: "pos-1", name: "POS 1", type: "POS" }
@@ -168,9 +168,6 @@ export default function OnboardingPage() {
                       rules={[{ required: true, message: "Timezone is required" }]}
                     >
                       <Input placeholder="Asia/Novosibirsk" />
-                    </Form.Item>
-                    <Form.Item label="Brand ID" name={["store", "brandId"]}>
-                      <Input placeholder="Optional brand binding" />
                     </Form.Item>
                   </Card>
                 </Col>
@@ -283,7 +280,7 @@ export default function OnboardingPage() {
                         <>
                           <Typography.Text type="secondary">Kiosk access token:</Typography.Text>
                           <Typography.Text code copyable style={{ wordBreak: "break-all" }}>
-                            {entry.kioskAccessToken.token}
+                            {entry.kioskAccessToken.accessToken}
                           </Typography.Text>
                         </>
                       ) : null}
